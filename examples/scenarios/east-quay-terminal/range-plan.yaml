@@ -223,6 +223,61 @@ weakness_candidates:
     nmq_auth_http_sub_pub() returns NOT_AUTHORIZED; source evidence contradicts
     the candidate ledger's claim that the broker delivers the restricted publish.
   - The public regression test is an available reproducer for the alias/ACL behavior, so it also fails the project's no-public-reproducer selection gate.
+- id: nanomq-445-cross-user-session-restoration
+  source_track: silent_upstream_fix
+  source_ref: pentest_design/CANDIDATES.md@66ced03a09789ad31a82955c2a7888fa6934c8c7 row 445
+  product: NanoMQ (emqx/nanomq)
+  vulnerable_baseline: 0.25.7
+  fix_commit: b1c15b6f
+  mechanism: >-
+    Persistent MQTT subscriptions and queued QoS session state are keyed by
+    ClientID without binding restored state to the authenticated username. A
+    second authenticated principal reusing a yard client ID can inherit its
+    subscriptions and receive messages queued while the original principal
+    was offline.
+  precondition: >-
+    The attacker has a low-privilege MQTT account and knows or can derive a
+    yard dispatch/control ClientID whose persistent session has queued traffic.
+  requires_capabilities:
+  - nanomq:mqtt:authenticated_client
+  - nanomq:mqtt:victim_client_id_known
+  grants_capabilities:
+  - nanomq:mqtt:read_victim_session_queue
+  resource_effects:
+  - confidentiality:yard-dispatch-queued-traffic
+  environment_preconditions:
+  - The broker uses vulnerable NanoMQ 0.25.7 with persistent sessions enabled.
+  - A yard service has a persistent subscription and a queued QoS 1 or QoS 2 message.
+  - The carrier principal can authenticate but is denied the yard topic by ACL.
+  - The vulnerable and fixed A/B comparison must hold broker configuration and nng submodule revision constant.
+  business_fit: >-
+    This is a defect in the existing Yard Message Network service and can
+    expose dispatch or yard state traffic to a carrier-class MQTT principal.
+    It is a read-side range node, not by itself a way to issue or authorize a
+    yard load command.
+  selection_band: adjacent
+  selection_rationale: >-
+    Strong protocol and existing-service fit for a chain-tissue node, but the
+    candidate pool explicitly requires runtime confirmation of cross-user
+    session restoration. The current entry state is HTTP-only and does not
+    provide a carrier MQTT credential or victim ClientID; do not select or
+    deploy until those business preconditions and a resource-relevant chain
+    transition are justified.
+  triage_status: candidate
+  artifact_pair_status: source-build-required
+  public_poc_screen: pending
+  case_role: chain_tissue
+  live_reproduction: pending
+  notes:
+  - >-
+    Fix b1c15b6f is merged but unreleased at the source snapshot; the row
+    identifies NanoMQ 0.25.7 as the released vulnerable baseline and a
+    post-fix master build as the control. Validate both the broker commit and
+    the nng submodule revision.
+  - >-
+    The candidate row specifies a two-principal MQTT persistent-session
+    reproduction with queued QoS delivery, not ClientID enumeration. Keep the
+    existing rejected row #407 separate; it is not evidence for this flaw.
 - id: headscale-208-machine-key-node-key-map-confusion
   source_track: silent_upstream_fix
   source_ref: pentest_design/CANDIDATES.md@9522a44ee7225782a5737ee672552f6de04b4522 row 208
