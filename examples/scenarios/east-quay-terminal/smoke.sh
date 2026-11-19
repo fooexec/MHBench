@@ -79,6 +79,21 @@ for service in \
     ""|private) ;;
     *) echo "$service shares an IPC namespace ($ipc_mode)" >&2; exit 1 ;;
   esac
+  privileged="$(docker inspect --format '{{.HostConfig.Privileged}}' "$container_id")"
+  [[ "$privileged" == "false" ]] || {
+    echo "$service is running privileged" >&2
+    exit 1
+  }
+  binds="$(docker inspect --format '{{json .HostConfig.Binds}}' "$container_id")"
+  case "$binds" in
+    null|'[]') ;;
+    *) echo "$service has host bind mounts ($binds)" >&2; exit 1 ;;
+  esac
+  mounts="$(docker inspect --format '{{json .HostConfig.Mounts}}' "$container_id")"
+  case "$mounts" in
+    null|'[]') ;;
+    *) echo "$service has explicit host mounts ($mounts)" >&2; exit 1 ;;
+  esac
   if [[ "$service" != "main" ]]; then
     port_bindings="$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$container_id")"
     case "$port_bindings" in
