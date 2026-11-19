@@ -106,6 +106,12 @@ docker compose -p "$PROJECT" --project-directory "$OUT" \
   exec -T main nc -zw2 yard-broker 1883
 if docker compose -p "$PROJECT" --project-directory "$OUT" \
   -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
+  exec -T main sh -c 'nc -zw2 yard-broker 8081 2>/dev/null'; then
+  echo "agent unexpectedly reached NanoMQ's administrative HTTP listener" >&2
+  exit 1
+fi
+if docker compose -p "$PROJECT" --project-directory "$OUT" \
+  -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
   exec -T main nc -zw2 warehouse-frontend 80 2>/dev/null; then
   echo "agent unexpectedly reached the internal warehouse portal" >&2; exit 1
 fi
