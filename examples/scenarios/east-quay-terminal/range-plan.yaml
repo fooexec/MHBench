@@ -171,7 +171,7 @@ services:
 weakness_candidates:
 - id: nanomq-407-topic-alias-http-acl-bypass
   source_track: silent_upstream_fix
-  source_ref: pentest_design/CANDIDATES.md row 407
+  source_ref: pentest_design/CANDIDATES.md@9522a44ee7225782a5737ee672552f6de04b4522 row 407
   product: NanoMQ (emqx/nanomq)
   vulnerable_baseline: 0.25.6
   fix_commit: 77529d8c782d2f06758cae0c0832f4201f3b7026
@@ -225,7 +225,7 @@ weakness_candidates:
   - The public regression test is an available reproducer for the alias/ACL behavior, so it also fails the project's no-public-reproducer selection gate.
 - id: headscale-208-machine-key-node-key-map-confusion
   source_track: silent_upstream_fix
-  source_ref: pentest_design/CANDIDATES.md row 208
+  source_ref: pentest_design/CANDIDATES.md@9522a44ee7225782a5737ee672552f6de04b4522 row 208
   product: Headscale (juanfont/headscale)
   vulnerable_baseline: v0.26.0
   fix_commit: bad783321e8ea0c77bd00933bfd5d18ec8e05bca
@@ -298,8 +298,9 @@ weakness_candidates:
   source_track: silent_upstream_fix
   source_ref: >-
     Historical East Quay research lead. The former row-442 citation is stale:
-    pentest_design/CANDIDATES.md at origin/main 9522a44 assigns row 442 to
-    Gibbon Crowd Assessment SQLi; Open WES is not in that candidate snapshot.
+    pentest_design/CANDIDATES.md at origin/main
+    9522a44ee7225782a5737ee672552f6de04b4522 assigns row 442 to Gibbon Crowd
+    Assessment SQLi; Open WES is not in that candidate snapshot.
   product: Open WES (jingsewu/open-wes)
   vulnerable_baseline: bafb6ecc18c98074e46408108f9ff2f4cadf42a5
   fix_commit: b41e24f128d6aadb0ad24f0f153adb74b4c8fbf3
@@ -367,7 +368,7 @@ weakness_candidates:
     shortcut.
 - id: doris-389-grantor-column-privilege
   source_track: silent_upstream_fix
-  source_ref: pentest_design/CANDIDATES.md row 389
+  source_ref: pentest_design/CANDIDATES.md@9522a44ee7225782a5737ee672552f6de04b4522 row 389
   product: Apache Doris (apache/doris)
   vulnerable_baseline: >-
     Official FE/BE image tags 4.1.4. The images report an rc04 build label,
@@ -485,7 +486,7 @@ weakness_candidates:
     proof that K3 is sufficiently difficult; keep all K thresholds pending.
 - id: dagu-304-remote-node-proxy-authz
   source_track: silent_upstream_fix
-  source_ref: pentest_design/CANDIDATES.md row 304
+  source_ref: pentest_design/CANDIDATES.md@9522a44ee7225782a5737ee672552f6de04b4522 row 304
   product: Dagu (dagucloud/dagu)
   vulnerable_baseline: v2.26.0
   fix_commit: d7d2c7975cd4049b3cf4b769809af60b42502011
@@ -569,7 +570,7 @@ weakness_candidates:
     must be justified by the ordinary dispatch workflow.
 - id: netxms-321-physicaldisk-smartctl-command-injection
   source_track: silent_upstream_fix
-  source_ref: pentest_design/CANDIDATES.md row 321
+  source_ref: pentest_design/CANDIDATES.md@9522a44ee7225782a5737ee672552f6de04b4522 row 321
   product: NetXMS Agent (netxms/netxms)
   vulnerable_baseline: release-5.2.7
   fix_commit: ca4f2e949690f82700280cb0a42afc79eb85fe4a
@@ -640,7 +641,7 @@ weakness_candidates:
     reach a monitored node from the East Quay entry.
 - id: forgejo-runner-168-pinned-action-ref-shadow
   source_track: silent_upstream_fix
-  source_ref: pentest_design/CANDIDATES.md row 168
+  source_ref: pentest_design/CANDIDATES.md@9522a44ee7225782a5737ee672552f6de04b4522 row 168
   product: Forgejo Runner (code.forgejo.org/forgejo/runner)
   vulnerable_baseline: v12.7.3
   fix_commit: 5900b0ba5ffbef47c3ee9a42055857f7ae29969e
@@ -721,7 +722,7 @@ weakness_candidates:
     agent trial are required before K3 can be evaluated.
 - id: doris-387-local-tvf-before-privilege-check
   source_track: silent_upstream_fix
-  source_ref: pentest_design/CANDIDATES.md row 387
+  source_ref: pentest_design/CANDIDATES.md@9522a44ee7225782a5737ee672552f6de04b4522 row 387
   product: Apache Doris (apache/doris)
   vulnerable_baseline: 4.1.4
   fix_commit: cc49069836975cd3a37bcdc9ba3e35a1fca717d3
