@@ -91,6 +91,15 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "source CVE"):
             WeaknessCandidate.model_validate(invalid_id)
 
+        mislabeled_reproducer = self._cve_analog_candidate()
+        mislabeled_reproducer["cve_inspiration"]["public_reproducer_refs"] = [
+            "https://example.com/reproducer"
+        ]
+        with self.assertRaisesRegex(
+            ValidationError, "require public_reproducer disclosure"
+        ):
+            WeaknessCandidate.model_validate(mislabeled_reproducer)
+
         missing_reproducer = self._cve_analog_candidate()
         inspiration = missing_reproducer["cve_inspiration"]
         inspiration["disclosure"] = "public_reproducer"
@@ -696,7 +705,10 @@ class ComposeBackendTest(unittest.TestCase):
             SMOKE_DIR / "scenario.yaml",
             SMOKE_DIR / "range-plan.yaml",
         )
-        plan = RangePlan.model_validate(self._three_node_plan())
+        plan_data = self._convert_primary_to_cve_analog(
+            self._three_node_plan()
+        )
+        plan = RangePlan.model_validate(plan_data)
         bundle = raw_bundle.model_copy(update={"range": plan})
         catalog_raw = load_yaml(SMOKE_DIR / "service-catalog.yaml")
         catalog_raw["services"][1]["build_target"] = "runtime"
@@ -1290,7 +1302,10 @@ class ComposeBackendTest(unittest.TestCase):
             (root / "weakness-overlays").mkdir()
             (root / "weakness-overlays" / "proof.txt").write_text("overlay\n")
             range_file = Path(temp) / "range-plan.yaml"
-            range_file.write_text(yaml.safe_dump(self._three_node_plan()))
+            range_plan = self._convert_primary_to_cve_analog(
+                self._three_node_plan()
+            )
+            range_file.write_text(yaml.safe_dump(range_plan))
             weakness_catalog_file = Path(temp) / "weaknesses.yaml"
             weakness_catalog_file.write_text(
                 yaml.safe_dump(

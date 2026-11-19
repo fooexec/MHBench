@@ -306,6 +306,13 @@ class CveInspiration(SpecModel):
             raise ValueError(
                 "public CVE reproducer disclosure must include a direct reference"
             )
+        if (
+            self.public_reproducer_refs
+            and self.disclosure != "public_reproducer"
+        ):
+            raise ValueError(
+                "public reproducer references require public_reproducer disclosure"
+            )
         return self
 
 
@@ -507,7 +514,7 @@ class WeaknessCandidate(SpecModel):
                 "PoC screening state"
             )
         elif (
-            self.source_track not in ("cve_inspired_analog",)
+            self.source_track != "cve_inspired_analog"
             and not self.fix_commit
         ):
             raise ValueError(

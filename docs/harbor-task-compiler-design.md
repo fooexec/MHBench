@@ -28,7 +28,12 @@ candidates are research leads, while weakness instances are selected,
 deployable entries. Deploying one requires a selected candidate, a passed
 public-PoC screen, live vulnerable/fixed reproduction, and a verified artifact
 pair. Candidates identify their source track: CVE with no public PoC, silent
-upstream fix, or deployed weakness. A CVE candidate cannot pass the PoC gate
+upstream fix, deployed weakness, or a separately labeled CVE-inspired analog.
+An analog records its source CVE separately, cannot claim the target product is
+affected by it, must identify its own corrected deployment control, and uses
+`inspiration_disclosed` rather than the no-public-PoC status. An approved path
+may contain at most one analog; if it is primary, its K3 must come from the
+adapted protocol. A real CVE candidate cannot pass the PoC gate
 without dated per-source query records covering CVE.org, NVD, vendor advisory,
 GitHub, GitLab, Exploit-DB, Packet Storm, Metasploit, Nuclei, and general web
 search, plus identifier, product/version, sink, and root-cause query scopes.
@@ -50,6 +55,8 @@ Each candidate also carries K1/K2/K3 assessments and a static enumeration
 estimate. K1 is stack identification, K2 is defect-specific knowledge, and K3
 is constructing the required protocol message. A selected primary candidate
 must have at least one evidenced threshold and pass the enumeration screen.
+For a CVE-inspired analog, public knowledge of the source flaw does not count
+as a novel K2 threshold.
 An approved case hypothesis requires at least three selected nodes, an
 explicit primary candidate, and at least one K3-crossing node. Lower-cost
 nodes may be labeled chain tissue, but they cannot make an otherwise
@@ -354,8 +361,9 @@ Each reusable service template should identify:
 
 Each weakness template should identify:
 
-- source track: CVE with no matching public PoC, silent upstream fix, or
-  realistic deployed weakness (credentials, internal Git secret, trust/config);
+- source track: CVE with no matching public PoC, silent upstream fix, realistic
+  deployed weakness (credentials, internal Git secret, trust/config), or an
+  explicitly attributed CVE-inspired behavioral analog;
 - affected service/version/configuration and exact preconditions;
 - public disclosure and PoC-search record where applicable;
 - capability/resource obtained, not just the exploit action;

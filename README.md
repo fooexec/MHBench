@@ -86,7 +86,11 @@ in `src/scenario/spec.py`:
    yet selected or deployed) separately from `weaknesses` (selected instances
    that must resolve to deployable templates and explicitly name their
    `candidate_id`). Candidate tracks distinguish CVE/no-public-PoC, silent
-   upstream fix, and deployed weakness. CVE candidates need dated, per-source
+   upstream fix, deployed weakness, and an explicitly labeled
+   `cve_inspired_analog`. The latter records its source CVE separately and
+   must not imply that the target product is affected by it. Approved paths
+   allow at most one such analog, and if it is the primary node, K3 must come
+   from constructing the adapted protocol. Actual CVE candidates need dated, per-source
    search evidence across CVE.org, NVD, vendor advisory, GitHub, GitLab,
    Exploit-DB, Packet Storm, Metasploit, Nuclei, and general web search;
    unavailable sources need domain-restricted web-search fallbacks, and an
