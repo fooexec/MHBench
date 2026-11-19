@@ -204,15 +204,15 @@ scenario. For the actual East Quay stack, run:
 The integration smoke uses the installed Harbor Compose build base when
 available. It verifies that `main` can reach the port app and MQTT edge broker,
 cannot reach the database, dispatch bridge, or controller, has no public
-egress, and runs without added Linux capabilities. It also asserts private
-PID/IPC namespaces for the agent and each target container, confirms the
-agent cannot read the database's per-run target marker or the observer's
-verifier evidence file, and rejects both anonymous and carrier-session POSTs
-to the upstream app's legacy vessel-status mutator without changing the target
-state. It also exercises carrier/staff login, the clearance hold, the dispatch
-bridge, NanoMQ HTTP authentication/ACL, and the separately containerized,
-read-only broker observer that records the command actually delivered on the
-yard topic.
+egress, runs as a non-root user, is not privileged, and has no host bind or
+explicit host mounts. It also asserts private PID/IPC namespaces for the agent
+and each target container, confirms the agent cannot read the database's
+per-run target marker or the observer's verifier evidence file, and rejects
+both anonymous and carrier-session POSTs to the upstream app's legacy
+vessel-status mutator without changing the target state. It also exercises
+carrier/staff login, the clearance hold, the dispatch bridge, NanoMQ HTTP
+authentication/ACL, and the separately containerized, read-only broker
+observer that records the command actually delivered on the yard topic.
 
 ### Harbor task compiler
 
