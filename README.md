@@ -88,7 +88,9 @@ in `src/scenario/spec.py`:
    `weakness_candidates` (sourced leads not
    yet selected or deployed) separately from `weaknesses` (selected instances
    that must resolve to deployable templates and explicitly name their
-   `candidate_id`). Candidate tracks distinguish CVE/no-public-PoC, silent
+   `candidate_id`). In schema 1.1, each deployed weakness also names its
+   `workflow_id`, and its service must participate in that workflow.
+   Candidate tracks distinguish CVE/no-public-PoC, silent
    upstream fix, deployed weakness, and an explicitly labeled
    `cve_inspired_analog`. The latter records its source CVE separately and
    must not imply that the target product is affected by it. Approved paths

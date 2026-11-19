@@ -34,10 +34,10 @@ Human-authored scenario + reviewed service/weakness inputs
 
 ## Current implemented inputs
 
-East Quay uses scenario/range schema **1.1** for explicit system interactions
-and the CVE-inspired analog provenance track. Legacy 1.0 pairs remain valid
-when they do not use those 1.1 features, and the pair's schema versions must
-match.
+East Quay uses scenario/range schema **1.1** for explicit system interactions,
+deployed-weakness-to-workflow mapping, and the CVE-inspired analog provenance
+track. Legacy 1.0 pairs remain valid when they do not use those 1.1 features,
+and the pair's schema versions must match.
 
 | Input | Contract | East Quay file |
 |---|---|---|
