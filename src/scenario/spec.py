@@ -22,6 +22,8 @@ from pydantic import (
     model_validator,
 )
 
+CVE_ID_PATTERN = re.compile(r"CVE-\d{4}-\d{4,}")
+
 
 class SpecModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -315,7 +317,7 @@ class CveInspiration(SpecModel):
     @field_validator("cve_id")
     @classmethod
     def validate_cve_identifier(cls, value: str) -> str:
-        if not re.fullmatch(r"CVE-\d{4}-\d{4,}", value):
+        if not CVE_ID_PATTERN.fullmatch(value):
             raise ValueError("CVE inspiration must identify its source CVE")
         return value
 
@@ -407,7 +409,7 @@ class WeaknessCandidate(SpecModel):
                 raise ValueError(
                     f"CVE candidate {self.id} must identify its fixed control"
                 )
-            if not self.cve_id or not self.cve_id.startswith("CVE-"):
+            if not self.cve_id or not CVE_ID_PATTERN.fullmatch(self.cve_id):
                 raise ValueError(
                     f"CVE candidate {self.id} must declare its CVE identifier"
                 )

@@ -141,6 +141,29 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
         ):
             WeaknessCandidate.model_validate(candidate)
 
+    def test_real_cve_candidate_requires_a_well_formed_cve_identifier(self):
+        candidate = {
+            "id": "malformed-cve-id",
+            "source_track": "cve_no_public_poc",
+            "source_ref": "https://example.com/candidate",
+            "product": "Fixture product",
+            "vulnerable_baseline": "1.0",
+            "fix_commit": "fixed-control",
+            "cve_id": "CVE-not-a-valid-id",
+            "mechanism": "Test mechanism.",
+            "precondition": "Test precondition.",
+            "requires_capabilities": ["service:reachable"],
+            "grants_capabilities": ["service:unauthorized-action"],
+            "resource_effects": ["integrity:record"],
+            "business_fit": "Test fit.",
+            "selection_band": "core",
+            "selection_rationale": "Test fixture.",
+        }
+        with self.assertRaisesRegex(
+            ValidationError, "must declare its CVE identifier"
+        ):
+            WeaknessCandidate.model_validate(candidate)
+
     def _east_quay_bundle(self, scenario_raw=None):
         scenario_raw = scenario_raw or load_yaml(SCENARIO_DIR / "scenario.yaml")
         return ScenarioBundle(
