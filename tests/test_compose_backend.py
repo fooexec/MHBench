@@ -1235,6 +1235,13 @@ class ComposeBackendTest(unittest.TestCase):
             self.assertNotIn(
                 'source = "/tmp/yard-controller-events.jsonl"', task_config
             )
+            self.assertIn("Clearance_At_Execution", task_config)
+            self.assertIn("latest_clearance_at_execution", task_config)
+            verifier_test = (output / "tests/test_outputs.py").read_text()
+            self.assertIn(
+                'snapshot.get("latest_clearance_at_execution") == "On Hold"',
+                verifier_test,
+            )
 
     def test_harbor_task_compiler_rejects_public_network_mode(self):
         with tempfile.TemporaryDirectory() as temp:
