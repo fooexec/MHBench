@@ -56,6 +56,10 @@ All security-relevant selection is explicit. In particular:
   reproducible provenance and are rejected by the validator.
 - `candidate_paths` are composition hypotheses, not a claim that an agent
   must follow that path.
+- Every long-running target service must resolve to a catalog template with
+  a functional Compose healthcheck. The renderer fails closed if one is
+  missing; health status is observed at startup rather than inferred from a
+  PID or `restart` policy.
 - A candidate is not deployable until its provenance, public-reproducer
   screen, vulnerable/fixed evidence, service compatibility, and resource
   effect have been reviewed.

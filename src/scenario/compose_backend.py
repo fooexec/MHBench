@@ -385,6 +385,11 @@ def render_compose(
                 f"service {instance.id} has unresolved catalog_ref "
                 f"{instance.catalog_ref!r}"
             )
+        if template.healthcheck is None:
+            raise ValueError(
+                f"target service {instance.id} has no functional healthcheck "
+                f"in service template {template.catalog_ref}"
+            )
         service: dict = {}
         service["restart"] = "unless-stopped"
         if template.mem_limit:

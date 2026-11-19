@@ -1083,6 +1083,7 @@ class ComposeBackendTest(unittest.TestCase):
             "delivery": "image",
             "image": image,
             "default_expose": [80],
+            "healthcheck": ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"],
         }
         catalog = ServiceCatalog.model_validate(catalog_raw)
 
@@ -1148,6 +1149,25 @@ class ComposeBackendTest(unittest.TestCase):
                 image="nginx:alpine",
                 mem_limit="lots",
             )
+
+    def test_target_services_require_functional_healthchecks(self):
+        bundle = load_bundle(
+            SMOKE_DIR / "scenario.yaml",
+            SMOKE_DIR / "range-plan.yaml",
+        )
+        catalog_raw = load_yaml(SMOKE_DIR / "service-catalog.yaml")
+        catalog_raw["services"][1].pop("healthcheck")
+        catalog = ServiceCatalog.model_validate(catalog_raw)
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaisesRegex(
+                ValueError, "target service status-page has no functional healthcheck"
+            ):
+                render_compose(
+                    bundle,
+                    catalog,
+                    catalog_root=SMOKE_DIR,
+                    output_dir=Path(temp) / "environment",
+                )
 
     def test_build_target_must_name_a_dockerfile_stage(self):
         bundle = load_bundle(
