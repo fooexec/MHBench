@@ -501,7 +501,9 @@ class ComposeBackendTest(unittest.TestCase):
             )
 
     def test_image_service_template_rejects_build_target(self):
-        with self.assertRaisesRegex(ValidationError, "forbids context/build_target"):
+        with self.assertRaisesRegex(
+            ValidationError, "forbids context/build_target"
+        ):
             ServiceTemplate(
                 catalog_ref="service://smoke/image",
                 delivery="image",
@@ -518,7 +520,9 @@ class ComposeBackendTest(unittest.TestCase):
         catalog_raw["services"][1]["build_target"] = "missing-stage"
         catalog = ServiceCatalog.model_validate(catalog_raw)
         with tempfile.TemporaryDirectory() as temp:
-            with self.assertRaisesRegex(ValueError, "does not name a Dockerfile stage"):
+            with self.assertRaisesRegex(
+                ValueError, "does not name a Dockerfile stage"
+            ):
                 render_compose(
                     bundle,
                     catalog,
