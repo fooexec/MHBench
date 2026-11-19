@@ -161,6 +161,8 @@ unprivileged `main` agent, and writes a `docker-compose.yaml` overlay with
 target services, networks, healthchecks, and copied build contexts. Harbor
 provides the base `main` service; the task overlay adds its task-local network
 attachments and security settings without replacing Harbor's built image.
+Build-backed service templates may select a named multi-stage Dockerfile
+`build_target`; reviewed file overlays are inserted into that same stage.
 An explicit `--weakness-catalog` can add reviewed file overlays to build-backed
 services; it does not select candidates or support arbitrary deployment
 scripts.

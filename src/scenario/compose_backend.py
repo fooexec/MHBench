@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 from pathlib import Path, PurePosixPath
 from typing import Literal
@@ -18,6 +19,11 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .spec import RangePlan, ScenarioBundle, ScenarioPlan
+
+_DOCKERFILE_STAGE_PATTERN = re.compile(
+    r"^\s*FROM\b.*\s+AS\s+([^\s#]+)(?:\s+#.*)?$",
+    re.IGNORECASE,
+)
 
 
 class ServiceTemplate(BaseModel):
@@ -28,13 +34,20 @@ class ServiceTemplate(BaseModel):
     image: str | None = None
     context: str | None = None
     dockerfile: str = "Dockerfile"
+    build_target: str | None = None
     default_expose: list[int] = Field(default_factory=list)
     healthcheck: list[str] | None = None
 
     @model_validator(mode="after")
     def validate_delivery(self) -> "ServiceTemplate":
-        if self.delivery == "image" and (not self.image or self.context):
-            raise ValueError("image delivery requires image and forbids context")
+        if self.build_target is not None and not self.build_target.strip():
+            raise ValueError("build_target must be a non-empty Dockerfile stage")
+        if self.delivery == "image" and (
+            not self.image or self.context or self.build_target
+        ):
+            raise ValueError(
+                "image delivery requires image and forbids context/build_target"
+            )
         if self.delivery == "build" and (not self.context or self.image):
             raise ValueError("build delivery requires context and forbids image")
         return self
@@ -162,6 +175,15 @@ def _copy_build_context(
     ):
         raise ValueError(
             f"Dockerfile for {template.catalog_ref} does not exist"
+        )
+    if template.build_target and not any(
+        (match := _DOCKERFILE_STAGE_PATTERN.match(line))
+        and match.group(1) == template.build_target
+        for line in dockerfile_source.read_text().splitlines()
+    ):
+        raise ValueError(
+            f"build_target {template.build_target!r} for "
+            f"{template.catalog_ref} does not name a Dockerfile stage"
         )
     for item in source.rglob("*"):
         if item.is_symlink() and not item.resolve().is_relative_to(source):
@@ -310,6 +332,8 @@ def render_compose(
             service["build"] = _copy_build_context(
                 template, catalog_root, output_dir, instance.id
             )
+            if template.build_target:
+                service["build"]["target"] = template.build_target
             selected = selected_by_service.get(instance.id, [])
             if selected:
                 service["build"]["dockerfile"] = _install_weakness_overlays(
@@ -317,6 +341,7 @@ def render_compose(
                     catalog_root,
                     output_dir / "build" / instance.id,
                     template.dockerfile,
+                    template.build_target,
                 )
         expose = instance.ports or template.default_expose
         if expose:
@@ -396,8 +421,9 @@ def _install_weakness_overlays(
     catalog_root: Path,
     build_context: Path,
     base_dockerfile: str,
+    build_target: str | None = None,
 ) -> str:
-    """Copy reviewed overlay files and append deterministic Dockerfile COPYs."""
+    """Copy reviewed overlays into the Dockerfile stage that will be built."""
     root = catalog_root.resolve()
     staged: list[tuple[str, str]] = []
     for template, weakness_id in selected:
@@ -433,12 +459,39 @@ def _install_weakness_overlays(
 
     original = build_context / base_dockerfile
     dockerfile_text = original.read_text()
+    copy_instructions = []
     for source, target in staged:
-        dockerfile_text += (
-            "\nCOPY "
-            + json.dumps([source, target])
-            + "\n"
+        copy_instructions.append(
+            "COPY " + json.dumps([source, target]) + "\n"
         )
+    if build_target is None:
+        dockerfile_text += "\n" + "".join(copy_instructions)
+    else:
+        lines = dockerfile_text.splitlines(keepends=True)
+        target_start = next(
+            (
+                index
+                for index, line in enumerate(lines)
+                if (match := _DOCKERFILE_STAGE_PATTERN.match(line))
+                and match.group(1) == build_target
+            ),
+            None,
+        )
+        if target_start is None:
+            raise ValueError(
+                f"build_target {build_target!r} for "
+                f"{base_dockerfile!r} does not name a Dockerfile stage"
+            )
+        next_stage = next(
+            (
+                index
+                for index in range(target_start + 1, len(lines))
+                if re.match(r"^\s*FROM\b", lines[index], re.IGNORECASE)
+            ),
+            len(lines),
+        )
+        lines[next_stage:next_stage] = ["\n", *copy_instructions]
+        dockerfile_text = "".join(lines)
     generated_name = "Dockerfile.mhbench"
     (build_context / generated_name).write_text(dockerfile_text)
     return generated_name

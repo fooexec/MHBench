@@ -60,6 +60,26 @@ been added to the East Quay task yet.
   local values allowed this trial to start, but they are not an acceptable
   task integration; AI features should be disabled/configured without external
   credentials before packaging.
+- In a later temporary-only build, removing the WES server's dependencies on
+  the optional `modules-ai:ai-core` and `modules-ai:ai-plugin` projects allowed
+  the WES API to start without DeepSeek or Pinecone environment values. The
+  Gradle build succeeded; direct health and invalid-credentials API checks
+  returned HTTP 200, and Nacos registered the WES instance. At 512 MiB with a
+  128 MiB metaspace cap, startup still failed. At 768 MiB with a 256 MiB heap,
+  256 MiB metaspace, and 64 MiB direct-memory cap, the WES process used about
+  624 MiB RSS.
+- The complete temporary seven-service stack was then started with no
+  DeepSeek/Pinecone environment values and no host-published ports. The UI
+  login route returned HTTP 200; an invalid sign-in traversed Nginx and the
+  gateway and returned the expected application-level wrong-credentials
+  response. Nacos showed registered `wes`, `station`, and `gateway` services.
+  The combined observed RSS was about 2.61 GiB; Nacos alone used about 768 MiB
+  of its 768 MiB limit, leaving inadequate headroom for a robust Harbor task.
+  The patch has not been applied to the task source, and this was a
+  feasibility stack rather than a task/resource-limit trial.
+- Reducing Nacos JVM heap/metaspace settings lowered its RSS only slightly
+  (to about 731 MiB under the same limit); do not assume that trimming Java
+  flags makes Nacos a small service.
 
 ## Security and integration gates
 

@@ -395,8 +395,10 @@ class ComposeBackendTest(unittest.TestCase):
         )
         plan = RangePlan.model_validate(self._three_node_plan())
         bundle = raw_bundle.model_copy(update={"range": plan})
+        catalog_raw = load_yaml(SMOKE_DIR / "service-catalog.yaml")
+        catalog_raw["services"][1]["build_target"] = "runtime"
         catalog = ServiceCatalog.model_validate(
-            load_yaml(SMOKE_DIR / "service-catalog.yaml")
+            catalog_raw
         )
         weakness_catalog = WeaknessCatalog(
             schema_version="1.0",
@@ -418,6 +420,13 @@ class ComposeBackendTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "catalog"
             shutil.copytree(SMOKE_DIR / "build", root / "build")
+            (root / "build" / "http" / "Dockerfile").write_text(
+                "FROM alpine:3.21 AS builder\n"
+                "RUN mkdir -p /staging\n"
+                "FROM nginx:alpine AS runtime\n"
+                "COPY index.html /usr/share/nginx/html/index.html\n"
+                "FROM runtime AS export\n"
+            )
             (root / "weakness-overlays").mkdir()
             for index in (1, 2, 3):
                 (root / "weakness-overlays" / f"node-{index}.txt").write_text(
@@ -434,6 +443,7 @@ class ComposeBackendTest(unittest.TestCase):
             service = yaml.safe_load(compose_file.read_text())["services"][
                 "status-page"
             ]
+            self.assertEqual(service["build"]["target"], "runtime")
             project_name = f"mhbench-overlay-{Path(temp).name}"
             compose_args = [
                 "docker",
@@ -455,6 +465,10 @@ class ComposeBackendTest(unittest.TestCase):
             ).read_text()
             self.assertIn("/usr/share/nginx/html/node-1.txt", dockerfile)
             self.assertIn("/usr/share/nginx/html/node-2.txt", dockerfile)
+            self.assertLess(
+                dockerfile.index("node-1.txt"),
+                dockerfile.index("FROM runtime AS export"),
+            )
             self.assertEqual(
                 len(list((output / "build/status-page/_mhbench/weaknesses").glob("*/*"))),
                 3,
@@ -485,6 +499,32 @@ class ComposeBackendTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
             )
+
+    def test_image_service_template_rejects_build_target(self):
+        with self.assertRaisesRegex(ValidationError, "forbids context/build_target"):
+            ServiceTemplate(
+                catalog_ref="service://smoke/image",
+                delivery="image",
+                image="nginx:alpine",
+                build_target="runtime",
+            )
+
+    def test_build_target_must_name_a_dockerfile_stage(self):
+        bundle = load_bundle(
+            SMOKE_DIR / "scenario.yaml",
+            SMOKE_DIR / "range-plan.yaml",
+        )
+        catalog_raw = load_yaml(SMOKE_DIR / "service-catalog.yaml")
+        catalog_raw["services"][1]["build_target"] = "missing-stage"
+        catalog = ServiceCatalog.model_validate(catalog_raw)
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaisesRegex(ValueError, "does not name a Dockerfile stage"):
+                render_compose(
+                    bundle,
+                    catalog,
+                    SMOKE_DIR,
+                    Path(temp) / "rendered",
+                )
 
     def test_selected_weakness_must_reference_a_listed_candidate(self):
         raw = load_yaml(SMOKE_DIR / "range-plan.yaml")
