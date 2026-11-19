@@ -67,13 +67,16 @@ candidate can affect. The useful handoff is a small, plausibly connected set
 
 Prefer candidates that apply to real services or realistic deployed
 weaknesses. If these cannot yield a coherent chain, allow a **minimal number**
-of CVE-inspired behavioral analogs (default: no more than one scored node in
-the first East Quay case). Record the originating CVE and the exact behavior
-being adapted, implement and test both vulnerable and corrected controls, and
-describe it as an analog—not as a CVE affecting the target product. An analog
-is not a `cve_no_public_poc` candidate and cannot be used to claim an
-unpublished/no-PoC vulnerability or to supply a supposedly undisclosed K2
-discovery gate. This is a fallback, not the default source of the chain.
+of CVE-inspired behavioral analogs; an approved path is limited to one.
+Record the originating CVE and the exact behavior being adapted, implement
+and test both vulnerable and corrected controls, and describe it as an
+analog—not as a CVE affecting the target product. An analog uses the distinct
+`cve_inspired_analog` source track and
+`public_poc_screen: inspiration_disclosed`; it is not a
+`cve_no_public_poc` candidate and cannot be used to claim an unpublished/no-PoC
+vulnerability or to supply a supposedly undisclosed K2 discovery gate. This
+is a fallback, not the default source of the chain. If the source is classified
+as having a public reproducer, include a direct reference to it.
 
 ## Current outputs and command path
 

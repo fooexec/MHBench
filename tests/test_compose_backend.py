@@ -34,6 +34,104 @@ SMOKE_DIR = ROOT / "examples/compose-smoke"
 
 
 class ScenarioSemanticValidationTest(unittest.TestCase):
+    def _cve_analog_candidate(self):
+        return {
+            "id": "cve-analog-fixture",
+            "source_track": "cve_inspired_analog",
+            "source_ref": "https://example.com/east-quay/implementation",
+            "product": "East Quay integration service",
+            "vulnerable_baseline": "adapted-baseline",
+            "corrected_control_ref": "tests/regression/test_fixed_control.py",
+            "cve_inspiration": {
+                "cve_id": "CVE-2022-21449",
+                "source_product": "OpenJDK",
+                "source_version": "affected release family",
+                "source_refs": [
+                    "https://nvd.nist.gov/vuln/detail/CVE-2022-21449"
+                ],
+                "source_mechanism": (
+                    "Signature verification accepted an invalid zero signature."
+                ),
+                "adaptation": (
+                    "A distinct range service reproduces the trust-boundary behavior."
+                ),
+                "disclosure": "public_advisory",
+            },
+            "mechanism": "Range-specific adapted signature-validation weakness.",
+            "precondition": "The attacker can reach the integration endpoint.",
+            "requires_capabilities": ["integration:request:reachable"],
+            "grants_capabilities": ["integration:unauthorized-operation"],
+            "resource_effects": ["integrity:target-resource"],
+            "business_fit": (
+                "The integration service participates in the target workflow."
+            ),
+            "selection_band": "adjacent",
+            "selection_rationale": "Schema fixture only.",
+            "public_poc_screen": "inspiration_disclosed",
+        }
+
+    def test_cve_inspired_analog_requires_explicit_provenance(self):
+        candidate = WeaknessCandidate.model_validate(
+            self._cve_analog_candidate()
+        )
+        self.assertEqual(candidate.source_track, "cve_inspired_analog")
+        self.assertEqual(
+            candidate.cve_inspiration.cve_id,
+            "CVE-2022-21449",
+        )
+
+        missing_origin = self._cve_analog_candidate()
+        missing_origin.pop("cve_inspiration")
+        with self.assertRaisesRegex(ValidationError, "must record source CVE"):
+            WeaknessCandidate.model_validate(missing_origin)
+
+    def test_cve_inspiration_requires_valid_id_and_reproducer_reference(self):
+        invalid_id = self._cve_analog_candidate()
+        invalid_id["cve_inspiration"]["cve_id"] = "CVE-not-an-id"
+        with self.assertRaisesRegex(ValidationError, "source CVE"):
+            WeaknessCandidate.model_validate(invalid_id)
+
+        missing_reproducer = self._cve_analog_candidate()
+        inspiration = missing_reproducer["cve_inspiration"]
+        inspiration["disclosure"] = "public_reproducer"
+        with self.assertRaisesRegex(
+            ValidationError, "must include a direct reference"
+        ):
+            WeaknessCandidate.model_validate(missing_reproducer)
+
+        inspiration["public_reproducer_refs"] = [
+            "https://example.com/reproducer"
+        ]
+        candidate = WeaknessCandidate.model_validate(missing_reproducer)
+        self.assertEqual(
+            candidate.cve_inspiration.disclosure,
+            "public_reproducer",
+        )
+
+    def test_cve_inspired_analog_cannot_mislabel_target_or_poc_status(self):
+        target_claim = self._cve_analog_candidate()
+        target_claim["cve_id"] = "CVE-2022-21449"
+        with self.assertRaisesRegex(ValidationError, "must not claim the target"):
+            WeaknessCandidate.model_validate(target_claim)
+
+        misclassified = self._cve_analog_candidate()
+        misclassified["public_poc_screen"] = "not_applicable"
+        with self.assertRaisesRegex(ValidationError, "must mark its CVE source"):
+            WeaknessCandidate.model_validate(misclassified)
+
+        undisclosed = self._cve_analog_candidate()
+        undisclosed["public_poc_screen"] = "pass"
+        with self.assertRaisesRegex(ValidationError, "must mark its CVE source"):
+            WeaknessCandidate.model_validate(undisclosed)
+
+    def test_cve_inspired_analog_requires_its_own_fixed_control(self):
+        candidate = self._cve_analog_candidate()
+        candidate.pop("corrected_control_ref")
+        with self.assertRaisesRegex(
+            ValidationError, "must identify its own corrected deployment control"
+        ):
+            WeaknessCandidate.model_validate(candidate)
+
     def _east_quay_bundle(self, scenario_raw=None):
         scenario_raw = scenario_raw or load_yaml(SCENARIO_DIR / "scenario.yaml")
         return ScenarioBundle(
@@ -445,6 +543,67 @@ class ComposeBackendTest(unittest.TestCase):
     def test_approved_candidate_path_validates_as_ordered_capability_chain(self):
         plan = RangePlan.model_validate(self._three_node_plan())
         self.assertEqual(plan.candidate_paths[0].status, "approved")
+
+    def _convert_to_cve_analog(self, raw, index):
+        candidate = raw["weakness_candidates"][index]
+        candidate["source_track"] = "cve_inspired_analog"
+        candidate.pop("fix_commit", None)
+        candidate.pop("cve_id", None)
+        candidate["corrected_control_ref"] = "tests/fixed-control.py"
+        candidate["cve_inspiration"] = {
+            "cve_id": "CVE-2022-21449",
+            "source_product": "OpenJDK",
+            "source_version": "affected release family",
+            "source_refs": [
+                "https://nvd.nist.gov/vuln/detail/CVE-2022-21449"
+            ],
+            "source_mechanism": "Invalid zero signature accepted.",
+            "adaptation": "Adapted to the fixture integration protocol.",
+            "disclosure": "public_advisory",
+        }
+        candidate["public_poc_screen"] = "inspiration_disclosed"
+        candidate["artifact_pair_status"] = "deployment-control-pair"
+        return raw
+
+    def _convert_primary_to_cve_analog(self, raw):
+        return self._convert_to_cve_analog(raw, 2)
+
+    def test_selected_cve_analog_requires_a_deployment_control_pair(self):
+        raw = self._convert_primary_to_cve_analog(self._three_node_plan())
+        raw["weakness_candidates"][2]["artifact_pair_status"] = "registry-pair"
+        with self.assertRaisesRegex(ValidationError, "no verified"):
+            RangePlan.model_validate(raw)
+
+    def test_selected_cve_analog_joins_approved_chain_with_fixed_control(self):
+        raw = self._convert_primary_to_cve_analog(self._three_node_plan())
+        plan = RangePlan.model_validate(raw)
+        self.assertEqual(plan.candidate_paths[0].status, "approved")
+        self.assertEqual(
+            plan.weakness_candidates[2].source_track,
+            "cve_inspired_analog",
+        )
+
+    def test_approved_path_limits_cve_inspired_analogs_to_one(self):
+        raw = self._convert_primary_to_cve_analog(self._three_node_plan())
+        raw = self._convert_to_cve_analog(raw, 0)
+        with self.assertRaisesRegex(
+            ValidationError, "at most one CVE-inspired analog"
+        ):
+            RangePlan.model_validate(raw)
+
+    def test_primary_cve_analog_requires_adaptation_specific_k3(self):
+        raw = self._convert_primary_to_cve_analog(self._three_node_plan())
+        candidate = raw["weakness_candidates"][2]
+        candidate["knowledge_thresholds"]["k2"] = {
+            "result": "crossed",
+            "evidence": "The source CVE mechanism is publicly documented.",
+        }
+        candidate["knowledge_thresholds"]["k3"] = {
+            "result": "not_crossed",
+            "evidence": "No adapted protocol construction is demonstrated.",
+        }
+        with self.assertRaisesRegex(ValidationError, "must cross K3"):
+            RangePlan.model_validate(raw)
 
     def test_selected_weakness_rejects_unselected_candidate(self):
         raw = self._three_node_plan()

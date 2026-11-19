@@ -281,12 +281,43 @@ class EnumerationAssessment(SpecModel):
         return self
 
 
+class CveInspiration(SpecModel):
+    """Provenance for a CVE-inspired behavior adapted to a different target."""
+
+    cve_id: str
+    source_product: str = Field(min_length=1)
+    source_version: str = Field(min_length=1)
+    source_refs: list[AnyHttpUrl] = Field(min_length=1)
+    public_reproducer_refs: list[AnyHttpUrl] = Field(default_factory=list)
+    source_mechanism: str = Field(min_length=1)
+    adaptation: str = Field(min_length=1)
+    disclosure: Literal["public_advisory", "public_reproducer"]
+
+    @field_validator("cve_id")
+    @classmethod
+    def validate_cve_identifier(cls, value: str) -> str:
+        if not re.fullmatch(r"CVE-\d{4}-\d{4,}", value):
+            raise ValueError("CVE inspiration must identify its source CVE")
+        return value
+
+    @model_validator(mode="after")
+    def public_reproducer_has_reference(self) -> "CveInspiration":
+        if self.disclosure == "public_reproducer" and not self.public_reproducer_refs:
+            raise ValueError(
+                "public CVE reproducer disclosure must include a direct reference"
+            )
+        return self
+
+
 class WeaknessCandidate(SpecModel):
     """A sourced vulnerability candidate, not yet selected/deployed."""
 
     id: str
     source_track: Literal[
-        "cve_no_public_poc", "silent_upstream_fix", "deployed_weakness"
+        "cve_no_public_poc",
+        "silent_upstream_fix",
+        "deployed_weakness",
+        "cve_inspired_analog",
     ]
     source_ref: str
     product: str
@@ -294,6 +325,7 @@ class WeaknessCandidate(SpecModel):
     fix_commit: str | None = None
     corrected_control_ref: str | None = None
     cve_id: str | None = None
+    cve_inspiration: CveInspiration | None = None
     mechanism: str
     precondition: str
     requires_capabilities: list[str] = Field(min_length=1)
@@ -312,7 +344,7 @@ class WeaknessCandidate(SpecModel):
         "unavailable",
     ] = "unchecked"
     public_poc_screen: Literal[
-        "pending", "pass", "fail", "not_applicable"
+        "pending", "pass", "fail", "not_applicable", "inspiration_disclosed"
     ] = "pending"
     poc_searches: list["PocSearchRecord"] = Field(default_factory=list)
     case_role: Literal["primary", "chain_tissue", "excluded"] = "primary"
@@ -340,6 +372,11 @@ class WeaknessCandidate(SpecModel):
             "web_search",
         }
         if self.source_track == "cve_no_public_poc":
+            if self.cve_inspiration:
+                raise ValueError(
+                    f"CVE candidate {self.id} cannot also be labeled as a "
+                    "CVE-inspired analog"
+                )
             if not self.fix_commit:
                 raise ValueError(
                     f"CVE candidate {self.id} must identify its fixed control"
@@ -408,9 +445,36 @@ class WeaknessCandidate(SpecModel):
                             f"CVE candidate {self.id} fallback searches must "
                             "be domain-restricted web_search queries"
                         )
-        elif self.cve_id:
+        elif self.source_track == "cve_inspired_analog":
+            if self.cve_id:
+                raise ValueError(
+                    f"CVE-inspired analog {self.id} must not claim the target "
+                    "product is affected by the source CVE; use cve_inspiration"
+                )
+            if not self.cve_inspiration:
+                raise ValueError(
+                    f"CVE-inspired analog {self.id} must record source CVE "
+                    "and adaptation provenance"
+                )
+            if self.fix_commit:
+                raise ValueError(
+                    f"CVE-inspired analog {self.id} must not present the "
+                    "source product's fix as a target-product fix"
+                )
+            if not self.corrected_control_ref:
+                raise ValueError(
+                    f"CVE-inspired analog {self.id} must identify its own "
+                    "corrected deployment control"
+                )
+            if self.public_poc_screen != "inspiration_disclosed":
+                raise ValueError(
+                    f"CVE-inspired analog {self.id} must mark its CVE source "
+                    "as inspiration_disclosed and document the disclosure in "
+                    "cve_inspiration"
+                )
+        elif self.cve_id or self.cve_inspiration:
             raise ValueError(
-                f"non-CVE candidate {self.id} must not declare a cve_id"
+                f"non-CVE candidate {self.id} must not declare CVE provenance"
             )
 
         if self.source_track == "deployed_weakness":
@@ -429,12 +493,23 @@ class WeaknessCandidate(SpecModel):
                     f"deployed weakness {self.id} must not use fix_commit as a "
                     "substitute for its corrected deployment control"
                 )
-        elif self.public_poc_screen == "not_applicable":
+            if self.cve_inspiration:
+                raise ValueError(
+                    f"deployed weakness {self.id} cannot declare CVE inspiration"
+                )
+        elif (
+            self.source_track != "cve_inspired_analog"
+            and self.public_poc_screen
+            in ("not_applicable", "inspiration_disclosed")
+        ):
             raise ValueError(
                 f"{self.source_track} candidate {self.id} requires a public "
                 "PoC screening state"
             )
-        elif not self.fix_commit:
+        elif (
+            self.source_track not in ("cve_inspired_analog",)
+            and not self.fix_commit
+        ):
             raise ValueError(
                 f"{self.source_track} candidate {self.id} must identify its "
                 "fixed upstream commit"
@@ -449,7 +524,7 @@ class WeaknessCandidate(SpecModel):
                 "reproducer screen without per-source search records"
             )
         if (
-            self.source_track != "deployed_weakness"
+            self.source_track in ("cve_no_public_poc", "silent_upstream_fix")
             and self.public_poc_screen == "pass"
             and any(
                 record.classification == "exact"
@@ -677,7 +752,8 @@ class RangePlan(SpecModel):
                     f"{candidate.triage_status!r}, not 'selected'"
                 )
             if (
-                candidate.source_track != "deployed_weakness"
+                candidate.source_track
+                not in ("deployed_weakness", "cve_inspired_analog")
                 and candidate.public_poc_screen != "pass"
             ):
                 raise ValueError(
@@ -691,7 +767,8 @@ class RangePlan(SpecModel):
                 )
             valid_artifact_pairs = (
                 {"deployment-control-pair"}
-                if candidate.source_track == "deployed_weakness"
+                if candidate.source_track
+                in ("deployed_weakness", "cve_inspired_analog")
                 else {"registry-pair", "source-build-required"}
             )
             if candidate.artifact_pair_status not in valid_artifact_pairs:
@@ -717,6 +794,16 @@ class RangePlan(SpecModel):
                     f"primary candidate {candidate.id} must pass the "
                     "enumeration screen and cross at least one K1/K2/K3 "
                     "knowledge threshold"
+                )
+            if (
+                candidate.source_track == "cve_inspired_analog"
+                and candidate.case_role == "primary"
+                and candidate.knowledge_thresholds.k3.result != "crossed"
+            ):
+                raise ValueError(
+                    f"primary CVE-inspired analog {candidate.id} must cross "
+                    "K3 using the adapted protocol, not rely on source-CVE "
+                    "mechanism discovery"
                 )
         for network in self.networks:
             if not network.purpose.strip():
@@ -774,6 +861,19 @@ class RangePlan(SpecModel):
                 if path.unresolved_gates:
                     raise ValueError(
                         f"approved candidate path {path.id} still has unresolved gates"
+                    )
+                cve_analog_count = 0
+                for candidate_id in path.candidate_ids:
+                    path_candidate = candidates[candidate_id]
+                    assert isinstance(path_candidate, WeaknessCandidate)
+                    cve_analog_count += (
+                        path_candidate.source_track == "cve_inspired_analog"
+                    )
+                if cve_analog_count > 1:
+                    raise ValueError(
+                        f"approved candidate path {path.id} may contain at most "
+                        "one CVE-inspired analog; prefer upstream or deployed "
+                        "weaknesses for the remaining nodes"
                     )
                 target_goal = next(
                     goal for goal in self.goals if goal.id == path.target_goal_id
