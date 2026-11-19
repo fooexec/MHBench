@@ -214,6 +214,10 @@ upstream app's legacy vessel-status mutator without changing the target state.
 It exercises carrier/staff login, the clearance hold, the dispatch bridge,
 NanoMQ HTTP authentication/ACL, and the separately containerized, read-only
 broker observer that records the command actually delivered on the yard topic.
+These checks verify the configured process-exit restart policy and startup
+health, not healthcheck-driven recovery: a still-running but unhealthy
+container is not automatically restarted by the Compose restart policy, and
+this range does not currently add a separate watchdog.
 
 ### Harbor task compiler
 
