@@ -84,6 +84,22 @@ for service in \
     echo "$service is running privileged" >&2
     exit 1
   }
+  if [[ "$service" != "main" ]]; then
+    # Target services use Compose restart policy; Harbor owns main's lifecycle.
+    restart_policy="$(docker inspect --format \
+      '{{.HostConfig.RestartPolicy.Name}}' "$container_id")"
+    [[ "$restart_policy" == "unless-stopped" ]] || {
+      echo "$service has unexpected restart policy ($restart_policy)" >&2
+      exit 1
+    }
+    health_status="$(docker inspect --format \
+      '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' \
+      "$container_id")"
+    [[ "$health_status" == "healthy" ]] || {
+      echo "$service is not functionally healthy ($health_status)" >&2
+      exit 1
+    }
+  fi
   binds="$(docker inspect --format '{{json .HostConfig.Binds}}' "$container_id")"
   case "$binds" in
     null|'[]') ;;
