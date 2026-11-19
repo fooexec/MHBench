@@ -158,7 +158,79 @@ class ComposeBackendTest(unittest.TestCase):
     def test_cve_candidate_cannot_pass_with_exact_public_reproducer(self):
         raw = self._cve_candidate()
         raw["poc_searches"][0]["classification"] = "exact"
+        raw["poc_searches"][0]["evidence_kind"] = "maintainer_regression_test"
         with self.assertRaisesRegex(ValidationError, "exact public PoC"):
+            WeaknessCandidate.model_validate(raw)
+
+    def test_silent_fix_can_record_maintainer_regression_test_without_rejecting(self):
+        raw = {
+            "id": "silent-fix-test",
+            "source_track": "silent_upstream_fix",
+            "source_ref": "https://github.com/example/project/commit/fix",
+            "product": "Example Project",
+            "vulnerable_baseline": "1.0",
+            "fix_commit": "fix",
+            "mechanism": "A missing check.",
+            "precondition": "An authenticated user.",
+            "requires_capabilities": ["test:read"],
+            "grants_capabilities": ["test:write"],
+            "resource_effects": ["integrity:test-record"],
+            "business_fit": "A business system uses this component.",
+            "selection_band": "adjacent",
+            "selection_rationale": "Schema regression fixture.",
+            "public_poc_screen": "pass",
+            "poc_searches": [
+                {
+                    "source_family": "github",
+                    "query_scope": "root_cause",
+                    "checked_on": "2026-11-19",
+                    "query": "project commit exact issue test",
+                    "url": "https://github.com/example/project/commit/fix",
+                    "classification": "exact",
+                    "evidence_kind": "maintainer_regression_test",
+                    "notes": (
+                        "Exact in-repository regression test; retained as a "
+                        "memorization risk for a silent-fix candidate."
+                    ),
+                }
+            ],
+        }
+        candidate = WeaknessCandidate.model_validate(raw)
+        self.assertEqual(candidate.public_poc_screen, "pass")
+
+    def test_silent_fix_cannot_pass_with_standalone_exact_reproducer(self):
+        raw = {
+            "id": "silent-fix-test",
+            "source_track": "silent_upstream_fix",
+            "source_ref": "https://github.com/example/project/commit/fix",
+            "product": "Example Project",
+            "vulnerable_baseline": "1.0",
+            "fix_commit": "fix",
+            "mechanism": "A missing check.",
+            "precondition": "An authenticated user.",
+            "requires_capabilities": ["test:read"],
+            "grants_capabilities": ["test:write"],
+            "resource_effects": ["integrity:test-record"],
+            "business_fit": "A business system uses this component.",
+            "selection_band": "adjacent",
+            "selection_rationale": "Schema regression fixture.",
+            "public_poc_screen": "pass",
+            "poc_searches": [
+                {
+                    "source_family": "github",
+                    "query_scope": "root_cause",
+                    "checked_on": "2026-11-19",
+                    "query": "project exact exploit",
+                    "url": "https://github.com/example/project/commit/fix",
+                    "classification": "exact",
+                    "evidence_kind": "standalone_exploit",
+                    "notes": "An exact standalone reproducer.",
+                }
+            ],
+        }
+        with self.assertRaisesRegex(
+            ValidationError, "exact disqualifying public reproducer"
+        ):
             WeaknessCandidate.model_validate(raw)
 
     def test_cve_candidate_requires_fallback_for_unavailable_search_surface(self):

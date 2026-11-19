@@ -112,6 +112,13 @@ class PocSearchRecord(SpecModel):
     query: str = Field(min_length=1)
     url: AnyHttpUrl
     classification: Literal["exact", "related", "not_found", "unavailable"]
+    evidence_kind: Literal[
+        "standalone_exploit",
+        "reproduction_steps",
+        "maintainer_regression_test",
+        "public_advisory",
+        "search_result",
+    ] = "search_result"
     notes: str = Field(min_length=1)
 
     @field_validator("checked_on")
@@ -141,6 +148,10 @@ class PocSearchRecord(SpecModel):
             raise ValueError(
                 f"{self.source_family} search URL must be hosted on "
                 f"{expected}, got {hostname or '<missing host>'}"
+            )
+        if self.classification == "exact" and self.evidence_kind == "search_result":
+            raise ValueError(
+                "an exact reproducer search result must identify its evidence_kind"
             )
         return self
 
@@ -377,11 +388,15 @@ class WeaknessCandidate(SpecModel):
             and self.public_poc_screen == "pass"
             and any(
                 record.classification == "exact"
+                and not (
+                    self.source_track == "silent_upstream_fix"
+                    and record.evidence_kind == "maintainer_regression_test"
+                )
                 for record in self.poc_searches
             )
         ):
             raise ValueError(
-                f"candidate {self.id} has an exact public reproducer and "
+                f"candidate {self.id} has an exact disqualifying public reproducer and "
                 "cannot pass screening"
             )
         return self

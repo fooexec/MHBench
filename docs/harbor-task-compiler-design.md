@@ -35,7 +35,11 @@ search, plus identifier, product/version, sink, and root-cause query scopes.
 Any exact public reproducer makes a passing CVE screen invalid. An unavailable
 search surface must be paired with a domain-restricted web-search fallback.
 Search URLs must match the declared source family, and future-dated checks
-are rejected. Approved candidate paths must list explicitly deployed
+are rejected. Search records distinguish standalone exploits, reproduction
+write-ups, and maintainer regression tests: an exact maintainer regression
+test on a silent-upstream-fix candidate is retained as a memorization/K2 risk,
+not conflated with an independently published reproducer. CVE candidates do
+not receive that exception. Approved candidate paths must list explicitly deployed
 candidates in
 capability-contiguous order and name a target capability declared by the
 linked resource goal. These checks stop an unreviewed or disconnected path
