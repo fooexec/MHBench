@@ -119,6 +119,12 @@ and resource goals are tracked in `range-plan.yaml`. A candidate is not part of
 the playable task unless it is explicitly selected, implemented, and validated
 there. In particular, Warehouse Execution is included as a real subsystem, not
 as an assertion that its publicly disclosed issues are eligible scoring nodes.
+Apache Doris remains an unselected analytics-warehouse lead: its local-file
+read behavior has only one-sided component evidence, no fixed runtime pair or
+blind agent protocol trial, and no demonstrated link to the yard-load outcome.
+Its FE/BE resource footprint is also too large to add casually to this
+4 GiB/10 GiB task allocation; it would require a justified service-architecture
+change, not simply another Compose entry.
 
 The eventual Harbor instruction should describe only the agent's entry point,
 available tools, and environment. Detailed candidate provenance and verifier

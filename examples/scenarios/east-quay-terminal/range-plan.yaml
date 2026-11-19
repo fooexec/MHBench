@@ -631,6 +631,74 @@ weakness_candidates:
     and used nxget from the official NetXMS server image. That setup is only a
     component fixture, not a proposed deployment or proof that the agent can
     reach a monitored node from the East Quay entry.
+- id: doris-387-local-tvf-before-privilege-check
+  source_track: silent_upstream_fix
+  source_ref: pentest_design/CANDIDATES.md row 387
+  product: Apache Doris (apache/doris)
+  vulnerable_baseline: 4.1.4
+  fix_commit: cc49069836975cd3a37bcdc9ba3e35a1fca717d3
+  mechanism: >-
+    The Nereids LOCAL table-valued function resolves and reads a file from a
+    selected Doris backend before enforcing the documented ADMIN/OPERATOR
+    privilege requirement. A low-privilege authenticated SQL user can therefore
+    retrieve backend-local configuration data.
+  precondition: >-
+    The attacker can authenticate to the Doris MySQL-protocol query endpoint
+    as a non-admin user with ordinary SELECT privileges.
+  requires_capabilities: [doris:mysql_protocol:authenticated_select_user]
+  grants_capabilities: [doris:read:backend_local_configuration]
+  resource_effects: [confidentiality:doris_be_local_configuration]
+  environment_preconditions:
+  - A Doris FE/BE pair running a vulnerable 4.1.4 baseline.
+  - A non-admin account with SELECT privileges and access to the query endpoint.
+  - A verifier-relevant configuration file on the BE host.
+  business_fit: >-
+    A cargo analytics warehouse is plausible in the port's reporting workflow,
+    but Doris is not currently in the East Quay service graph and no natural
+    data or credential flow from its BE configuration to yard dispatch has
+    been established.
+  selection_band: deferred
+  selection_rationale: >-
+    Keep as a deferred component lead, not a selected East Quay node. An
+    isolated runtime test reproduced a local-file read on the 4.1.4 baseline,
+    but the vulnerable/fixed runtime pair and blind agent protocol cost are
+    unverified. The source fix is not present in the available 4.1.5 release.
+    The two Doris containers also create substantial memory and image-storage
+    pressure under the current 4 GiB / 10 GiB task allocation, and no business
+    dependency connects this file disclosure to the yard-load goal.
+  triage_status: candidate
+  artifact_pair_status: source-build-required
+  public_poc_screen: pending
+  poc_searches:
+  - source_family: github
+    query_scope: root_cause
+    checked_on: '2026-11-19'
+    query: Apache Doris #69323 Enforce LOCAL TVF privileges before file access
+    url: https://github.com/apache/doris/pull/69323
+    classification: exact
+    evidence_kind: maintainer_regression_test
+    notes: >-
+      The upstream change includes a regression test for denying LOCAL/FILE
+      access to an ordinary SELECT user. Record this as a K2/memorization risk;
+      it is maintainer-authored test material, not an independently published
+      exploit write-up. Broader independent-reproducer searching remains
+      pending; do not treat this record as a completed screen.
+  live_reproduction: pending
+  notes:
+  - >-
+    One-sided local runtime reproduction is recorded below. Do not call the
+    candidate's vulnerable/fixed reproduction gate passed: the fixed
+    source/runtime control has not been exercised in this Harbor topology.
+  - >-
+    The FE image digest is
+    `sha256:3cbfc9b6293057a0b7f10c2e597f20f4a6bafed0729dfa9795db21eae2e136bb`;
+    the BE digest is
+    `sha256:08c139f3d0ec45090a5214fd76f19f84b871d05f1a2db83b5e35a85c193617b2`.
+    Both report a 4.1.4-rc04 build label whose runtime hash matches the peeled
+    4.1.4 source tag.
+  - >-
+    No blind model trial has attempted the MySQL protocol from the task agent
+    image. Service-local mysql-client success is not K3 evidence.
 artifact_observations:
 - checked_on: '2026-11-19'
   candidate_ids: [headscale-208-machine-key-node-key-map-confusion]
@@ -722,6 +790,27 @@ artifact_observations:
     no blind-agent difficulty measurement. Leave K1/K2/K3 pending; a blind
     model roll is required before this candidate can satisfy the protocol-cost
     gate.
+- checked_on: '2026-11-19'
+  candidate_ids: [doris-387-local-tvf-before-privilege-check]
+  observation: >-
+    A local internal-only Compose stack used official `apache/doris:fe-4.1.4`
+    and `apache/doris:be-4.1.4` images with no host ports. A non-admin SQL
+    account granted SELECT privileges queried a test CSV placed in the BE's
+    `conf` directory through the LOCAL table-valued function and received its
+    seeded marker. The running FE/BE reported
+    `doris-4.1.4-rc04-ad35a140c7f`, matching the peeled 4.1.4 source tag.
+    This was a one-sided baseline test: it used the mysql client inside the FE
+    service, did not run the fixed control, did not use the task agent, and did
+    not put a Doris service in the East Quay graph. A `docker stats` snapshot
+    after startup showed about 1.589 GiB for FE and 1.102 GiB for BE; the local
+    images were about 2.51 GB and 6.16 GB respectively.
+  consequence: >-
+    The file-read effect is demonstrated on the vulnerable component, but no
+    vulnerable/fixed artifact pair or K3 measurement is established. Doris is
+    not an additive fit under the current East Quay 4 GiB memory / 10 GiB
+    storage allocation without a separately justified redesign, and the
+    observed file disclosure has no proven dependency on the yard-load goal.
+    Keep the candidate deferred and unselected.
 - checked_on: '2026-11-19'
   candidate_ids: [netxms-321-physicaldisk-smartctl-command-injection]
   observation: >-
