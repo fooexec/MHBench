@@ -49,7 +49,10 @@ TARGET_SHIP="$(docker compose -p "$PROJECT" --project-directory "$OUT" \
 # Harbor's agent and each target service must keep their own PID/IPC namespace.
 # An empty PidMode means Docker's normal private-per-container namespace; host or
 # container:<id> modes would collapse that boundary.
-for service in main port-app port-db yard-dispatch yard-control yard-broker yard-observer; do
+for service in \
+  main port-app port-db yard-dispatch yard-control yard-broker yard-observer \
+  warehouse-frontend warehouse-gateway warehouse-wes warehouse-station \
+  warehouse-db warehouse-cache warehouse-config; do
   container_id="$(docker compose -p "$PROJECT" --project-directory "$OUT" \
     -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" ps -q "$service")"
   [[ -n "$container_id" ]] || { echo "missing container for $service" >&2; exit 1; }
@@ -63,10 +66,18 @@ for service in main port-app port-db yard-dispatch yard-control yard-broker yard
     ""|private) ;;
     *) echo "$service shares an IPC namespace ($ipc_mode)" >&2; exit 1 ;;
   esac
+  if [[ "$service" != "main" ]]; then
+    port_bindings="$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$container_id")"
+    case "$port_bindings" in
+      null|'{}') ;;
+      *) echo "$service publishes a host port ($port_bindings)" >&2; exit 1 ;;
+    esac
+  fi
 done
 
-# The agent can reach the port application and the MQTT edge broker, but not
-# the database, bridge/control sidecars, or public network.
+# The agent can reach the carrier-facing port application and MQTT edge broker.
+# Warehouse Execution, its frontend, the port database, dispatch/control
+# sidecars, and public egress stay outside the agent's network.
 docker compose -p "$PROJECT" --project-directory "$OUT" \
   -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
   exec -T main curl -fsS -o /dev/null http://port-app/
@@ -93,6 +104,52 @@ fi
 docker compose -p "$PROJECT" --project-directory "$OUT" \
   -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
   exec -T main nc -zw2 yard-broker 1883
+if docker compose -p "$PROJECT" --project-directory "$OUT" \
+  -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
+  exec -T main nc -zw2 warehouse-frontend 80 2>/dev/null; then
+  echo "agent unexpectedly reached the internal warehouse portal" >&2; exit 1
+fi
+WAREHOUSE_UI_CODE="$(docker compose -p "$PROJECT" --project-directory "$OUT" \
+  -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
+  exec -T warehouse-gateway curl -sS -o /dev/null -w '%{http_code}' \
+  http://warehouse-frontend/login | tr -d '\r')"
+test "$WAREHOUSE_UI_CODE" = 200
+WAREHOUSE_LOGIN_RESPONSE="$(docker compose -p "$PROJECT" \
+  --project-directory "$OUT" -f "$BASE_COMPOSE" \
+  -f "$OUT/docker-compose.yaml" exec -T warehouse-gateway curl -fsS \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"unseeded-smoke-check","password":"not-a-password"}' \
+  http://warehouse-frontend/gw/user/api/auth/signin)"
+grep -q 'ERR_WRONG_CREDENTIALS' <<<"$WAREHOUSE_LOGIN_RESPONSE"
+for endpoint in \
+  /gw/wms/stock/container/stock/freezeContainerStock \
+  /gw/wms/stock/container/stock/unfreezeContainerStock \
+  /gw/wms/outbound/order/improvePriority; do
+  code="$(docker compose -p "$PROJECT" --project-directory "$OUT" \
+    -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
+    exec -T warehouse-gateway curl -sS -o /dev/null -w '%{http_code}' \
+    -X POST -d '{}' "http://warehouse-frontend${endpoint}" | tr -d '\r')"
+  test "$code" = 403 || {
+    echo "known cross-warehouse mutation route was not blocked: $endpoint ($code)" >&2
+    exit 1
+  }
+done
+for target in \
+  'warehouse-frontend 80' \
+  'warehouse-gateway 8090' \
+  'warehouse-wes 9010' \
+  'warehouse-station 9040' \
+  'warehouse-db 3306' \
+  'warehouse-cache 6379' \
+  'warehouse-config 8848'; do
+  read -r host port <<<"$target"
+  if docker compose -p "$PROJECT" --project-directory "$OUT" \
+    -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
+    exec -T main nc -zw2 "$host" "$port" 2>/dev/null; then
+    echo "agent unexpectedly reached warehouse-internal service $host:$port" >&2
+    exit 1
+  fi
+done
 docker compose -p "$PROJECT" --project-directory "$OUT" \
   -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
   exec -T main mosquitto_pub -h yard-broker -p 1883 \

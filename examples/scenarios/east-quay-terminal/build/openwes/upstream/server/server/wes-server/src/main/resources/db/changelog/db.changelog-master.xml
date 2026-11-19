@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <!-- Reference other changelog files -->
+    <include file="/db/changelog/db.changelog-1.0.xml"/>
+    <include file="/db/changelog/db.changelog-20241214.xml"/>
+    <include file="/db/changelog/db.changelog-20241218.xml"/>
+    <include file="/db/changelog/db.changelog-20241220.xml"/>
+    <include file="/db/changelog/db.changelog-20241221.xml"/>
+    <include file="/db/changelog/db.changelog-20241222.xml"/>
+    <include file="/db/changelog/db.changelog-20241229.xml"/>
+    <include file="/db/changelog/db.changelog-20250103.xml"/>
+    <include file="/db/changelog/db.changelog-20250108.xml"/>
+    <include file="/db/changelog/db.changelog-20250523.xml"/>
+    <include file="/db/changelog/db.changelog-20250824.xml"/>
+    <include file="/db/changelog/db.changelog-20250908.xml"/>
+    <include file="/db/changelog/db.changelog-20251031.xml"/>
+    <include file="/db/changelog/db.changelog-20251103.xml"/>
+    <include file="/db/changelog/db.changelog-20251107.xml"/>
+    <include file="/db/changelog/db.changelog-20251108.xml"/>
+    <include file="/db/changelog/db.changelog-20251111.xml"/>
+    <include file="/db/changelog/db.changelog-20260317.xml"/>
+    <include file="/db/changelog/db.changelog-20260517.xml"/>
+    <include file="/db/changelog/db.changelog-20260521.xml"/>
+    <include file="/db/changelog/db.changelog-20260523.xml"/>
+    <include file="/db/changelog/db.changelog-20261008.xml"/>
+    <include file="/db/changelog/db.changelog-20261022.xml"/>
+    <include file="/db/changelog/db.changelog-20261023.xml"/>
+
+</databaseChangeLog>

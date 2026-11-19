@@ -119,22 +119,24 @@ must not be scored or added merely to reach a node count. NetXMS #321 has a
 local 5.2.7/5.2.8 image differential, but the NetXMS 5.2 patch release 8
 announcement discloses the same command-injection class, and no East Quay
 route to a NetXMS Agent is established.
-The Open WES active-plugin
-revision A/B test showed a state difference, but the vulnerable upstream
-baseline had no pluginDeveloper/pluginAdmin service-layer split, so that
-difference was not a demonstrated security-boundary bypass. Its separate
-CVE-2026-111721 stock-scope issue was rejected after finding a public detailed
-reproducer and low-cost REST/ID path. Apache Doris #389 may fit a port cargo
-analytics workflow and has a SQL protocol surface, but it is not yet in the
-service graph; image/runtime weight, K3 cost, and manifest-to-yard resource
-link remain unverified. There is no approved candidate path and still zero
-selected/deployed weaknesses. The Headscale differential has no proven
-Harbor route-to-resource bridge. Vulnerability selection remains explicit;
+The Open WES active-plugin revision A/B test showed a state difference, but
+the vulnerable upstream baseline had no pluginDeveloper/pluginAdmin
+service-layer split, so that difference was not a demonstrated
+security-boundary bypass. Its separate CVE-2026-111721 stock-scope issue was
+rejected after finding a public detailed reproducer and low-cost REST/ID path.
+Open WES is now included as an unscored warehouse subsystem; the known
+cross-warehouse mutation sinks are guarded and blocked at the agent-facing
+portal, but the yard bridge still does not consume WES order state. Apache
+Doris #389 may fit a port cargo analytics workflow and has a SQL protocol
+surface, but it is not yet in the service graph; image/runtime weight, K3 cost,
+and manifest-to-yard resource link remain unverified. There is no approved
+candidate path and still zero selected/deployed weaknesses. The Headscale
+differential has no proven Harbor route-to-resource bridge. Vulnerability
+selection remains explicit;
 rendering requires a matching reviewed weakness catalog whenever weaknesses
 are selected and fails rather than silently dropping them.
-Open WES's latest-source build and minimal runtime feasibility checks are
-recorded in `docs/east-quay-openwes-integration-feasibility.md`; that evidence
-does not mean the subsystem has been integrated into the task.
+Open WES's source pin, compatibility changes, and runtime evidence are
+recorded in `docs/east-quay-openwes-integration-feasibility.md`.
 The validator reports selection bands separately from triage states, so a
 rejected research lead is not confused with a deployable weakness candidate.
 
@@ -163,6 +165,9 @@ provides the base `main` service; the task overlay adds its task-local network
 attachments and security settings without replacing Harbor's built image.
 Build-backed service templates may select a named multi-stage Dockerfile
 `build_target`; reviewed file overlays are inserted into that same stage.
+The renderer can set a per-service `mem_limit` and healthcheck `start_period`;
+`depends_on` uses `service_healthy` when the referenced service defines a
+healthcheck.
 An explicit `--weakness-catalog` can add reviewed file overlays to build-backed
 services; it does not select candidates or support arbitrary deployment
 scripts.

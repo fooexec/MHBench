@@ -1,0 +1,134 @@
+package org.openwes.wes.basic.work_station.domain.entity;
+
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.extern.slf4j.Slf4j;
+import org.openwes.domain.event.AggregatorRoot;
+import org.openwes.wes.api.basic.constants.PutWallSlotStatusEnum;
+import org.openwes.wes.api.basic.event.PutWallAssignOrderEvent;
+import org.openwes.wes.api.basic.event.PutWallRemindSealContainerEvent;
+
+@EqualsAndHashCode(callSuper = true)
+@Slf4j
+@Data
+public class PutWallSlot extends AggregatorRoot {
+
+    private Long id;
+    private Long workStationId;
+    private Long putWallId;
+    private String putWallCode;
+    private String putWallSlotCode;
+    private String ptlTag;
+
+    private String face;
+
+    private String level;
+    private String bay;
+    private Integer locLevel;
+    private Integer locBay;
+
+    private boolean enable;
+
+    private Long pickingOrderId = 0L;
+
+    private PutWallSlotStatusEnum putWallSlotStatus;
+
+    private String transferContainerCode;
+    private Long transferContainerRecordId;
+    private Long version;
+
+    public void initPutWallSlot(Long putWallId, String putWallCode, Long workStationId) {
+        this.workStationId = workStationId;
+        this.putWallId = putWallId;
+        this.putWallCode = putWallCode;
+        this.putWallSlotStatus = PutWallSlotStatusEnum.IDLE;
+        this.enable = true;
+    }
+
+    public void assignOrder(Long orderId) {
+        log.info("workStation: {} putWall: {} slot: {} assign order: {}",
+                this.workStationId, this.putWallCode, this.putWallSlotCode, orderId);
+
+        if (this.pickingOrderId != null && this.pickingOrderId > 0) {
+            throw new IllegalStateException("put wall slot has a picking order ,can't assign");
+        }
+
+        if (orderId == null) {
+            throw new IllegalStateException("assigned orderId can not be empty");
+        }
+
+        if (this.putWallSlotStatus != PutWallSlotStatusEnum.IDLE) {
+            throw new IllegalStateException("put wall slot status is not IDLE,  can't assign order");
+        }
+
+        this.pickingOrderId = orderId;
+        this.putWallSlotStatus = PutWallSlotStatusEnum.WAITING_BINDING;
+
+        this.addAsynchronousDomainEvents(new PutWallAssignOrderEvent(this.id, orderId, this.putWallCode, this.workStationId, this.putWallSlotCode, this.ptlTag));
+    }
+
+    public void bindContainer(String containerCode, Long transferContainerRecordId) {
+        log.info("work station: {} putWall: {} slot: {} bind container: {} transferContainerRecordId: {}",
+                this.workStationId, this.putWallCode, putWallSlotCode, containerCode, transferContainerRecordId);
+
+        if (this.putWallSlotStatus != PutWallSlotStatusEnum.WAITING_BINDING) {
+            throw new IllegalStateException("PutWallSlot is not WAITING_BINDING, cannot bind container");
+        }
+        this.transferContainerCode = containerCode;
+        this.transferContainerRecordId = transferContainerRecordId;
+        this.putWallSlotStatus = PutWallSlotStatusEnum.BOUND;
+    }
+
+    public void unBindContainer() {
+        log.info("work station: {} putWall: {} slot: {} unbind container", this.workStationId, this.putWallCode, putWallSlotCode);
+
+        if (this.putWallSlotStatus != PutWallSlotStatusEnum.BOUND) {
+            throw new IllegalStateException("PutWall Slot is not BOUND, cannot unbind container");
+        }
+        this.transferContainerCode = null;
+        this.transferContainerRecordId = null;
+        this.putWallSlotStatus = PutWallSlotStatusEnum.WAITING_BINDING;
+    }
+
+    public void sealContainer() {
+        log.info("work station: {} putWall: {} slot: {} seal container", this.workStationId, this.putWallCode, putWallSlotCode);
+
+        if (this.putWallSlotStatus != PutWallSlotStatusEnum.WAITING_SEAL) {
+            throw new IllegalStateException("PutWallSlot is not WAITING_SEAL, cannot seal container");
+        }
+        this.pickingOrderId = null;
+        this.transferContainerCode = null;
+        this.transferContainerRecordId = null;
+        this.putWallSlotStatus = PutWallSlotStatusEnum.IDLE;
+    }
+
+    public void remindToSealContainer(Long pickingOrderId) {
+        log.info("work station: {} putWall: {} slot: {} reminded to seal picking order: {}", this.workStationId, this.putWallCode,
+                this.putWallSlotCode, pickingOrderId);
+
+        if (this.putWallSlotStatus != PutWallSlotStatusEnum.BOUND) {
+            throw new IllegalStateException("put wall slot status is not BOUND,  can't remind to seal container");
+        }
+
+        this.putWallSlotStatus = PutWallSlotStatusEnum.WAITING_SEAL;
+
+        this.addAsynchronousDomainEvents(new PutWallRemindSealContainerEvent(this.id, this.workStationId, this.putWallSlotCode,
+                pickingOrderId, this.ptlTag));
+    }
+
+    public void splitContainer() {
+        log.info("work station: {} putWall: {} slot: {} split container", this.workStationId, this.putWallCode, this.putWallSlotCode);
+
+        if (PutWallSlotStatusEnum.WAITING_SEAL != this.putWallSlotStatus) {
+            throw new IllegalStateException("put wall slot status is not WAITING_SEAL,  can't split container");
+        }
+
+        this.putWallSlotStatus = PutWallSlotStatusEnum.WAITING_BINDING;
+        this.transferContainerCode = null;
+        this.transferContainerRecordId = null;
+    }
+
+    public void update(PutWallSlot existSlot) {
+        this.id = existSlot.getId();
+    }
+}

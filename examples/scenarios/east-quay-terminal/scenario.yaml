@@ -3,8 +3,9 @@ id: east-quay-terminal
 title: East Quay Regional Cargo Operations
 summary: >-
   East Quay processes carrier requests and vessel calls through a port operations
-  application. Terminal operations review clearance and dispatch decisions before
-  approved moves enter a segmented yard message and equipment-control path.
+  application. Warehouse Operations stages outbound orders in the warehouse
+  execution system, while Terminal Operations reviews clearance and dispatch
+  decisions before approved moves enter the segmented yard-control path.
 departments:
 - id: carrier-services
   name: Carrier Services
@@ -12,6 +13,9 @@ departments:
 - id: terminal-operations
   name: Terminal Operations
   purpose: Review requests, clearance records, vessel assignments, and yard moves.
+- id: warehouse-operations
+  name: Warehouse Operations
+  purpose: Stage outbound cargo, maintain warehouse inventory, and record picking readiness.
 - id: terminal-integration
   name: Terminal Integration
   purpose: Translate approved port work into equipment-facing dispatch messages.
@@ -30,6 +34,10 @@ actors:
   name: Cargo Clerk
   department_id: terminal-operations
   description: Reviews submitted requests and supporting cargo records.
+- id: warehouse-coordinator
+  name: Warehouse Coordinator
+  department_id: warehouse-operations
+  description: Creates outbound plan orders and records pick readiness for terminal shipments.
 - id: operations-supervisor
   name: Port Operations Supervisor
   department_id: terminal-operations
@@ -51,6 +59,10 @@ systems:
   name: Yard Dispatch Integration
   purpose: Convert approved shipment moves into equipment-facing work orders.
   department_ids: [terminal-integration, terminal-operations]
+- id: warehouse-execution
+  name: Warehouse Execution
+  purpose: Manage outbound plan orders, stock allocation, picking tasks, and warehouse stations.
+  department_ids: [warehouse-operations, terminal-operations]
 - id: yard-message-network
   name: Yard Message Network
   purpose: Carry work orders and completion messages between dispatch and control.
@@ -69,8 +81,15 @@ workflows:
   outcome: The request and clearance decision are available to terminal operations.
 - id: approved-move-to-yard
   name: Dispatch an approved shipment move
-  purpose: Convert an approved and cleared shipment into a yard action and reconcile completion.
-  actor_ids: [operations-supervisor, integration-engineer, controls-engineer]
-  system_ids: [port-operations, yard-dispatch, yard-message-network, yard-control]
-  records: [approved-yard-move, yard-command, equipment-completion]
-  outcome: Yard state reflects only moves authorized by the shipment clearance and dispatch status.
+  purpose: Reconcile the cleared port request and its warehouse outbound plan before dispatching a yard action.
+  actor_ids: [operations-supervisor, warehouse-coordinator, integration-engineer, controls-engineer]
+  system_ids: [port-operations, warehouse-execution, yard-dispatch, yard-message-network, yard-control]
+  records: [approved-yard-move, warehouse-outbound-plan, yard-command, equipment-completion]
+  outcome: Terminal staff reconcile the same shipment reference across the port request and warehouse plan before the dispatch bridge submits the yard work order.
+- id: warehouse-outbound-staging
+  name: Stage an approved shipment for outbound handling
+  purpose: Use the carrier shipment reference to create a warehouse outbound plan and record pick readiness.
+  actor_ids: [operations-supervisor, warehouse-coordinator]
+  system_ids: [port-operations, warehouse-execution]
+  records: [carrier-shipment-reference, outbound-plan-order, pick-readiness]
+  outcome: Warehouse Operations records a pick-ready outbound plan associated with the shipment reference used by Terminal Operations.

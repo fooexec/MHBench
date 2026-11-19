@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: station
+  profiles:
+    active: test
+  cloud:
+    nacos:
+      config:
+        server-addr: warehouse-config:8848
+        prefix: ${spring.application.name}
+        file-extension: yml
+        namespace: ${spring.profiles.active}
+        group: openwes
+        username: nacos
+        password: nacos
+
+script-plugin:
+  registry:
+    mode: remote
+
+server:
+  port: 9040
+
+pf4j:
+  plugin:
+    jar:
+      dir: /plugins/station/jar
+    config:
+      dir: /plugins/station/config
+
+worker:
+  id: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - info
+          - prometheus
+  endpoint:
+    health:
+      show-details: always

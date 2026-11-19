@@ -439,18 +439,21 @@ uses the Shipping-Port-Management-Sys-derived PHP application and MariaDB,
 with NanoMQ plus the small dispatch/controller processes needed for the normal
 yard workflow. NanoMQ #407 is rejected as a weakness; Headscale #208 remains
 a deferred remote-maintenance lead because the route-to-yard data plane has
-not been proven. Open WES is a strong real warehouse-system fit, but its
-CVE-2026-111721 stock-scope issue is rejected because a public detailed
-reproducer gives a low-cost REST/ID path. A separate local A/B test showed a
+not been proven. Open WES is now included as an unscored warehouse subsystem.
+Its CVE-2026-111721 stock-scope issue is rejected because a public detailed
+reproducer gives a low-cost REST/ID path; the known mutation routes are
+warehouse-scoped in the vendored controllers and denied at the agent-facing
+Nginx edge. A separate local A/B test showed a
 script-plugin revision state change, but that change is **not** a security
 boundary in its actual vulnerable upstream baseline: the baseline controller
 has no developer/admin role split, and create/save/enable operations all call
 the service directly. Do not count it as a scored weakness or combine the
 later role-layer commit with the earlier vulnerable source to create a
-synthetic bug. Open WES is not currently in the service graph. Do not add
-auxiliary products unless a distinct business workflow and a validated 3+
-node chain justify them. Keep custom glue bounded; retain Harbor's separate
-agent and verifier containers and the existing network isolation.
+synthetic bug. The WES-to-port relationship is a manual handoff on the shared
+shipment reference; the current yard bridge does not query WES order state.
+Keep WES unscored until that data bridge is implemented and verified. Keep
+custom glue bounded; retain Harbor's separate agent and verifier containers
+and the existing network isolation.
 
 Apache Doris #389 is a new unselected adjacent lead for a possible
 port-operations analytics warehouse. It offers a MySQL-protocol privilege

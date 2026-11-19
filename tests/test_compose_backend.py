@@ -511,6 +511,15 @@ class ComposeBackendTest(unittest.TestCase):
                 build_target="runtime",
             )
 
+    def test_service_template_validates_compose_memory_limits(self):
+        with self.assertRaisesRegex(ValidationError, "Docker Compose memory size"):
+            ServiceTemplate(
+                catalog_ref="service://smoke/invalid-memory",
+                delivery="image",
+                image="nginx:alpine",
+                mem_limit="lots",
+            )
+
     def test_build_target_must_name_a_dockerfile_stage(self):
         bundle = load_bundle(
             SMOKE_DIR / "scenario.yaml",
@@ -549,9 +558,11 @@ class ComposeBackendTest(unittest.TestCase):
             SMOKE_DIR / "scenario.yaml",
             SMOKE_DIR / "range-plan.yaml",
         )
-        catalog = ServiceCatalog.model_validate(
-            load_yaml(SMOKE_DIR / "service-catalog.yaml")
-        )
+        catalog_raw = load_yaml(SMOKE_DIR / "service-catalog.yaml")
+        catalog_raw["services"][0]["mem_limit"] = "512m"
+        catalog_raw["services"][1]["mem_limit"] = "768m"
+        catalog_raw["services"][1]["healthcheck_start_period"] = "90s"
+        catalog = ServiceCatalog.model_validate(catalog_raw)
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "task" / "environment"
             compose_file = render_compose(bundle, catalog, SMOKE_DIR, output)
@@ -561,7 +572,17 @@ class ComposeBackendTest(unittest.TestCase):
             compose = yaml.safe_load(compose_file.read_text())
             self.assertEqual(compose["services"]["main"]["networks"], ["agent-edge"])
             self.assertEqual(compose["services"]["main"]["cap_drop"], ["ALL"])
+            self.assertEqual(compose["services"]["main"]["mem_limit"], "512m")
             self.assertNotIn("build", compose["services"]["main"])
+            self.assertEqual(
+                compose["services"]["main"]["depends_on"],
+                {"status-page": {"condition": "service_healthy"}},
+            )
+            self.assertEqual(compose["services"]["status-page"]["mem_limit"], "768m")
+            self.assertEqual(
+                compose["services"]["status-page"]["healthcheck"]["start_period"],
+                "90s",
+            )
             subprocess.run(
                 [
                     "docker",
@@ -604,6 +625,30 @@ class ComposeBackendTest(unittest.TestCase):
             self.assertEqual(main["networks"], ["agent-edge"])
             self.assertEqual(main["cap_drop"], ["ALL"])
             self.assertEqual(main["security_opt"], ["no-new-privileges:true"])
+            self.assertEqual(
+                set(main["depends_on"]),
+                {
+                    "port-app",
+                    "port-db",
+                    "yard-dispatch",
+                    "yard-control",
+                    "yard-broker",
+                    "yard-observer",
+                    "warehouse-frontend",
+                    "warehouse-gateway",
+                    "warehouse-wes",
+                    "warehouse-station",
+                    "warehouse-db",
+                    "warehouse-cache",
+                    "warehouse-config",
+                },
+            )
+            self.assertTrue(
+                all(
+                    dependency["condition"] == "service_healthy"
+                    for dependency in main["depends_on"].values()
+                )
+            )
             self.assertNotIn("ports", main)
             self.assertTrue(compose["networks"]["agent-edge"]["internal"])
             self.assertEqual(
@@ -616,6 +661,10 @@ class ComposeBackendTest(unittest.TestCase):
             self.assertEqual(
                 compose["services"]["yard-observer"]["networks"],
                 ["ot-segment"],
+            )
+            self.assertEqual(
+                compose["services"]["port-app"]["depends_on"],
+                {"port-db": {"condition": "service_healthy"}},
             )
             subprocess.run(
                 [

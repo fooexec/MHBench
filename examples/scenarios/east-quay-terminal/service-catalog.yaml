@@ -39,3 +39,58 @@ services:
   dockerfile: Dockerfile
   default_expose: [1883]
   healthcheck: [CMD-SHELL, "nc -z 127.0.0.1 1883"]
+- catalog_ref: service://east-quay/openwes/frontend
+  delivery: build
+  context: build/openwes
+  dockerfile: Dockerfile.frontend
+  default_expose: [80]
+  mem_limit: 256m
+  healthcheck: [CMD-SHELL, "wget -q -O /dev/null http://127.0.0.1/login"]
+- catalog_ref: service://east-quay/openwes/gateway
+  delivery: build
+  context: build/openwes
+  dockerfile: Dockerfile.backend
+  build_target: warehouse-gateway
+  default_expose: [8090]
+  mem_limit: 512m
+  healthcheck_start_period: 90s
+  healthcheck: [CMD-SHELL, "curl -fsS -o /dev/null http://127.0.0.1:8090/user/api/auth/signin"]
+- catalog_ref: service://east-quay/openwes/wes
+  delivery: build
+  context: build/openwes
+  dockerfile: Dockerfile.backend
+  build_target: warehouse-wes
+  default_expose: [9010]
+  mem_limit: 768m
+  healthcheck_start_period: 90s
+  healthcheck: [CMD-SHELL, "curl -fsS http://127.0.0.1:9010/actuator/health"]
+- catalog_ref: service://east-quay/openwes/station
+  delivery: build
+  context: build/openwes
+  dockerfile: Dockerfile.backend
+  build_target: warehouse-station
+  default_expose: [9040]
+  mem_limit: 512m
+  healthcheck_start_period: 90s
+  healthcheck: [CMD-SHELL, "curl -fsS http://127.0.0.1:9040/actuator/health"]
+- catalog_ref: service://east-quay/openwes/mysql8
+  delivery: build
+  context: build/openwes
+  dockerfile: Dockerfile.mysql
+  default_expose: [3306]
+  mem_limit: 512m
+  healthcheck_start_period: 30s
+  healthcheck: [CMD-SHELL, 'mysqladmin ping -h 127.0.0.1 -uroot -p"$$MYSQL_ROOT_PASSWORD" --silent']
+- catalog_ref: service://east-quay/openwes/redis72
+  delivery: image
+  image: redis:7.2@sha256:5b816bb37d9707a70f10ef5002ecf8ee431750d397010fc4314c93dca887962f
+  default_expose: [6379]
+  mem_limit: 96m
+  healthcheck: [CMD, redis-cli, ping]
+- catalog_ref: service://east-quay/openwes/nacos255
+  delivery: image
+  image: nacos/nacos-server:v2.5.5@sha256:b481c7aaec43c07536b304bb16039d2cd6de8ee45348ce4095be391bc1ccdf4f
+  default_expose: [8848]
+  mem_limit: 1g
+  healthcheck_start_period: 45s
+  healthcheck: [CMD-SHELL, "curl -fsS http://127.0.0.1:8848/nacos/ >/dev/null"]

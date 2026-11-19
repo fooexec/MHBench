@@ -1,0 +1,29 @@
+FROM gradle:8.3-jdk17@sha256:461018d754af5e85ca08b8f38e5f583d65ebadf83be8ad01f3bff03740ccef4f AS backend-build
+WORKDIR /workspace/server
+COPY upstream/server/ ./
+RUN ./gradlew --no-daemon --no-build-cache \
+    :server:wes-server:bootJar \
+    :server:gateway-server:bootJar \
+    :server:station-server:bootJar
+
+FROM eclipse-temurin:17-jre-alpine@sha256:e2ba4e947bd5e236a9866fbdda03e4936036cb9e9d16ea0d84d103d6634a5c21 AS runtime-base
+WORKDIR /app
+RUN apk add --no-cache curl \
+    && addgroup -S app && adduser -S app -G app \
+    && mkdir -p /app/logs && chown -R app:app /app
+USER app
+
+FROM runtime-base AS warehouse-wes
+COPY --from=backend-build --chown=app:app \
+    /workspace/server/server/wes-server/build/libs/wes-server*.jar /app/app.jar
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+
+FROM runtime-base AS warehouse-gateway
+COPY --from=backend-build --chown=app:app \
+    /workspace/server/server/gateway-server/build/libs/gateway-server*.jar /app/app.jar
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+
+FROM runtime-base AS warehouse-station
+COPY --from=backend-build --chown=app:app \
+    /workspace/server/server/station-server/build/libs/station-server*.jar /app/app.jar
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

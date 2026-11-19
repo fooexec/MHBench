@@ -35,11 +35,24 @@ class ServiceTemplate(BaseModel):
     context: str | None = None
     dockerfile: str = "Dockerfile"
     build_target: str | None = None
+    mem_limit: str | None = None
     default_expose: list[int] = Field(default_factory=list)
     healthcheck: list[str] | None = None
+    healthcheck_start_period: str = "10s"
 
     @model_validator(mode="after")
     def validate_delivery(self) -> "ServiceTemplate":
+        if self.mem_limit is not None and not re.fullmatch(
+            r"\d+(?:\.\d+)?(?:b|k|m|g|kb|mb|gb)?",
+            self.mem_limit.strip(),
+            re.IGNORECASE,
+        ):
+            raise ValueError("mem_limit must be a Docker Compose memory size")
+        if not re.fullmatch(
+            r"\d+(?:\.\d+)?(?:ns|us|ms|s|m|h)",
+            self.healthcheck_start_period,
+        ):
+            raise ValueError("healthcheck_start_period must be a Compose duration")
         if self.build_target is not None and not self.build_target.strip():
             raise ValueError("build_target must be a non-empty Dockerfile stage")
         if self.delivery == "image" and (
@@ -317,6 +330,9 @@ def render_compose(
 
     compose_services: dict[str, dict] = {}
     output_dir.mkdir(parents=True, exist_ok=True)
+    service_instances = {
+        instance.id: instance for instance in bundle.range.services
+    }
     for instance in bundle.range.services:
         template = templates.get(instance.catalog_ref)
         if template is None:
@@ -326,6 +342,8 @@ def render_compose(
             )
         service: dict = {}
         service["restart"] = "unless-stopped"
+        if template.mem_limit:
+            service["mem_limit"] = template.mem_limit
         if template.delivery == "image":
             service["image"] = template.image
         else:
@@ -352,10 +370,21 @@ def render_compose(
                 "interval": "10s",
                 "timeout": "5s",
                 "retries": 5,
-                "start_period": "10s",
+                "start_period": template.healthcheck_start_period,
             }
         if instance.depends_on:
-            service["depends_on"] = instance.depends_on
+            service["depends_on"] = {
+                dependency_id: {
+                    "condition": (
+                        "service_healthy"
+                        if templates[
+                            service_instances[dependency_id].catalog_ref
+                        ].healthcheck
+                        else "service_started"
+                    )
+                }
+                for dependency_id in instance.depends_on
+            }
         if instance.environment:
             service["environment"] = instance.environment
         service["networks"] = attached_networks[instance.id]
@@ -378,25 +407,18 @@ def render_compose(
                 "networks": agent.network_ids,
             }
         )
-        entry_instance = next(
-            (
-                instance
-                for instance in bundle.range.services
-                if instance.id == bundle.range.entry_state.service_id
-            ),
-            None,
-        )
-        entry_template = (
-            templates[entry_instance.catalog_ref] if entry_instance else None
-        )
-        if entry_template and entry_template.healthcheck:
-            agent_service["depends_on"] = {
-                bundle.range.entry_state.service_id: {
-                    "condition": "service_healthy"
-                }
+        if template.mem_limit:
+            agent_service["mem_limit"] = template.mem_limit
+        agent_service["depends_on"] = {
+            instance.id: {
+                "condition": (
+                    "service_healthy"
+                    if templates[instance.catalog_ref].healthcheck
+                    else "service_started"
+                )
             }
-        elif entry_instance:
-            agent_service["depends_on"] = [bundle.range.entry_state.service_id]
+            for instance in bundle.range.services
+        }
         compose_services["main"] = agent_service
 
     compose_networks = {

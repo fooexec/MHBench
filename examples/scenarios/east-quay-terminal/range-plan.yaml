@@ -103,6 +103,71 @@ services:
     MQTT_PASSWORD: local-observer-password
     MQTT_TOPIC: eastquay/yard/commands
     OBSERVED_EVENT_PATH: /tmp/yard-broker-observed-commands.jsonl
+- id: warehouse-frontend
+  system_ids: [warehouse-execution]
+  catalog_ref: service://east-quay/openwes/frontend
+  role: >-
+    Warehouse Operations portal for inbound and outbound work, stock
+    allocation, picking tasks, and warehouse stations.
+  ports: [80]
+  depends_on: [warehouse-gateway]
+- id: warehouse-gateway
+  system_ids: [warehouse-execution]
+  catalog_ref: service://east-quay/openwes/gateway
+  role: >-
+    API gateway for Warehouse Execution, including the WMS and station
+    workflows used by warehouse staff.
+  ports: [8090]
+  depends_on: [warehouse-wes, warehouse-station, warehouse-db, warehouse-cache, warehouse-config]
+  environment:
+    JAVA_TOOL_OPTIONS: "-Xms32m -Xmx256m -XX:MaxMetaspaceSize=192m -XX:MaxDirectMemorySize=64m"
+- id: warehouse-wes
+  system_ids: [warehouse-execution]
+  catalog_ref: service://east-quay/openwes/wes
+  role: Warehouse Execution business API for stock, inbound, outbound, and task planning.
+  ports: [9010]
+  depends_on: [warehouse-db, warehouse-cache, warehouse-config]
+  environment:
+    JAVA_TOOL_OPTIONS: "-Xms32m -Xmx256m -XX:MaxMetaspaceSize=256m -XX:MaxDirectMemorySize=64m"
+- id: warehouse-station
+  system_ids: [warehouse-execution]
+  catalog_ref: service://east-quay/openwes/station
+  role: Warehouse station and equipment workflow API.
+  ports: [9040]
+  depends_on: [warehouse-db, warehouse-cache, warehouse-config]
+  environment:
+    JAVA_TOOL_OPTIONS: "-Xms32m -Xmx256m -XX:MaxMetaspaceSize=192m -XX:MaxDirectMemorySize=64m"
+- id: warehouse-db
+  system_ids: [warehouse-execution]
+  catalog_ref: service://east-quay/openwes/mysql8
+  role: MySQL storage for warehouse orders, inventory, stations, and Nacos configuration.
+  ports: [3306]
+  environment:
+    MYSQL_ROOT_PASSWORD: local-root-only
+- id: warehouse-cache
+  system_ids: [warehouse-execution]
+  catalog_ref: service://east-quay/openwes/redis72
+  role: Redis cache and session store for Warehouse Execution.
+- id: warehouse-config
+  system_ids: [warehouse-execution]
+  catalog_ref: service://east-quay/openwes/nacos255
+  role: Nacos configuration and discovery service for Warehouse Execution.
+  ports: [8848]
+  depends_on: [warehouse-db]
+  environment:
+    MODE: standalone
+    SPRING_DATASOURCE_PLATFORM: mysql
+    MYSQL_SERVICE_HOST: warehouse-db
+    MYSQL_SERVICE_PORT: "3306"
+    MYSQL_SERVICE_DB_NAME: nacos_config
+    MYSQL_SERVICE_USER: nacos_range
+    MYSQL_SERVICE_PASSWORD: nacos-range-local
+    MYSQL_SERVICE_DB_PARAM: "characterEncoding=utf8&connectTimeout=10000&socketTimeout=30000&autoReconnect=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+    JVM_XMS: 128m
+    JVM_XMX: 256m
+    JVM_XMN: 64m
+    JVM_MS: 96m
+    JVM_MMS: 192m
 weakness_candidates:
 - id: nanomq-407-topic-alias-http-acl-bypass
   source_track: silent_upstream_fix
@@ -608,6 +673,9 @@ networks:
 - id: ot-segment
   purpose: Private MQTT path between the dispatch integration and yard control.
   exposure: internal
+- id: warehouse-internal
+  purpose: Private Warehouse Execution API, database, cache, and service-discovery network.
+  exposure: internal
 attachments:
 - service_id: port-app
   network_id: agent-edge
@@ -629,6 +697,20 @@ attachments:
   network_id: ot-segment
 - service_id: yard-observer
   network_id: ot-segment
+- service_id: warehouse-frontend
+  network_id: warehouse-internal
+- service_id: warehouse-gateway
+  network_id: warehouse-internal
+- service_id: warehouse-wes
+  network_id: warehouse-internal
+- service_id: warehouse-station
+  network_id: warehouse-internal
+- service_id: warehouse-db
+  network_id: warehouse-internal
+- service_id: warehouse-cache
+  network_id: warehouse-internal
+- service_id: warehouse-config
+  network_id: warehouse-internal
 flows:
 - id: port-app-to-database
   from_service: port-app
@@ -660,6 +742,84 @@ flows:
   protocol: mqtt
   port: 1883
   purpose: Subscribe read-only to the actual broker command stream for independent audit evidence.
+- id: warehouse-frontend-to-gateway
+  from_service: warehouse-frontend
+  to_service: warehouse-gateway
+  protocol: http
+  port: 8090
+  purpose: Route warehouse operator browser requests through the warehouse API gateway.
+- id: warehouse-gateway-to-wes
+  from_service: warehouse-gateway
+  to_service: warehouse-wes
+  protocol: http
+  port: 9010
+  purpose: Route WMS and outbound-plan requests to the Warehouse Execution API.
+- id: warehouse-gateway-to-station
+  from_service: warehouse-gateway
+  to_service: warehouse-station
+  protocol: http
+  port: 9040
+  purpose: Route station and equipment workflow requests to the station API.
+- id: warehouse-services-to-database
+  from_service: warehouse-wes
+  to_service: warehouse-db
+  protocol: tcp
+  port: 3306
+  purpose: Persist warehouse orders, stock, and task state.
+- id: warehouse-services-to-cache
+  from_service: warehouse-wes
+  to_service: warehouse-cache
+  protocol: tcp
+  port: 6379
+  purpose: Store warehouse sessions and cache state.
+- id: warehouse-services-to-config
+  from_service: warehouse-wes
+  to_service: warehouse-config
+  protocol: tcp
+  port: 8848
+  purpose: Resolve warehouse application configuration and service registrations.
+- id: warehouse-gateway-to-database
+  from_service: warehouse-gateway
+  to_service: warehouse-db
+  protocol: tcp
+  port: 3306
+  purpose: Support gateway authentication and warehouse configuration lookups.
+- id: warehouse-gateway-to-cache
+  from_service: warehouse-gateway
+  to_service: warehouse-cache
+  protocol: tcp
+  port: 6379
+  purpose: Store gateway sessions and cache state.
+- id: warehouse-gateway-to-config
+  from_service: warehouse-gateway
+  to_service: warehouse-config
+  protocol: tcp
+  port: 8848
+  purpose: Resolve gateway routes and service registrations.
+- id: warehouse-station-to-database
+  from_service: warehouse-station
+  to_service: warehouse-db
+  protocol: tcp
+  port: 3306
+  purpose: Persist warehouse station and equipment workflow state.
+- id: warehouse-station-to-cache
+  from_service: warehouse-station
+  to_service: warehouse-cache
+  protocol: tcp
+  port: 6379
+  purpose: Store warehouse station sessions and cache state.
+- id: warehouse-station-to-config
+  from_service: warehouse-station
+  to_service: warehouse-config
+  protocol: tcp
+  port: 8848
+  purpose: Resolve station settings and service registrations.
+- id: config-to-warehouse-database
+  from_service: warehouse-config
+  to_service: warehouse-db
+  protocol: tcp
+  port: 3306
+  purpose: Persist Nacos service configuration.
 attack_transitions: []
 candidate_paths: []
 goals:
