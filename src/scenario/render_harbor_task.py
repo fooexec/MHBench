@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import tomllib
 from pathlib import Path
 
 import click
@@ -50,6 +51,19 @@ def _entry_instruction(bundle) -> str:
 
 
 def _copy_task_assets(assets_dir: Path, output_dir: Path) -> None:
+    task_file = assets_dir / "task.toml"
+    if not task_file.is_file():
+        raise ValueError(f"required Harbor task asset is missing: {task_file}")
+    try:
+        task_config = tomllib.loads(task_file.read_text())
+    except tomllib.TOMLDecodeError as exc:
+        raise ValueError(f"invalid Harbor task TOML: {exc}") from exc
+    if _contains_public_network_mode(task_config):
+        raise ValueError(
+            "network_mode = \"public\" is prohibited; use a closed "
+            "network policy and explicitly test required service reachability"
+        )
+
     for name in ("task.toml", "README.md"):
         source = assets_dir / name
         if not source.is_file():
@@ -66,6 +80,19 @@ def _copy_task_assets(assets_dir: Path, output_dir: Path) -> None:
         if destination.exists():
             shutil.rmtree(destination)
         shutil.copytree(source, destination)
+
+
+def _contains_public_network_mode(value) -> bool:
+    """Reject public network policy wherever Harbor task assets declare it."""
+    if isinstance(value, dict):
+        return any(
+            (key == "network_mode" and item == "public")
+            or _contains_public_network_mode(item)
+            for key, item in value.items()
+        )
+    if isinstance(value, list):
+        return any(_contains_public_network_mode(item) for item in value)
+    return False
 
 
 @click.command()

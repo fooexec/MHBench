@@ -67,6 +67,14 @@ of validated East Quay vulnerabilities. The smoke fixture lives in
 exercised with Docker Compose and Harbor 0.25.0. This proves local integration
 only, not yet stock-Harbor portability across other Harbor versions.
 
+The task compiler treats Harbor `network_mode = "public"` as prohibited and
+fails closed if it appears in any parsed task TOML section. Use a closed
+network policy instead; service reachability belongs in the Compose topology
+and must be verified with positive and negative connectivity checks. This
+does not imply that `no-network` alone creates the desired internal topology:
+the Harbor agent must still be attached only to the explicitly intended
+service-facing networks.
+
 ## Recommendation
 
 Do not make an LLM a runtime dependency of the environment generator, and do

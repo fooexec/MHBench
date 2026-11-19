@@ -795,6 +795,37 @@ class ComposeBackendTest(unittest.TestCase):
                 'source = "/tmp/yard-controller-events.jsonl"', task_config
             )
 
+    def test_harbor_task_compiler_rejects_public_network_mode(self):
+        with tempfile.TemporaryDirectory() as temp:
+            assets = Path(temp) / "assets"
+            shutil.copytree(SCENARIO_DIR / "harbor-assets", assets)
+            task_file = assets / "task.toml"
+            task_file.write_text(
+                task_file.read_text().replace(
+                    'network_mode = "no-network"',
+                    'network_mode = "public"',
+                )
+            )
+            result = CliRunner().invoke(
+                render_harbor_task,
+                [
+                    "--scenario",
+                    str(SCENARIO_DIR / "scenario.yaml"),
+                    "--range-plan",
+                    str(SCENARIO_DIR / "range-plan.yaml"),
+                    "--catalog",
+                    str(SCENARIO_DIR / "service-catalog.yaml"),
+                    "--catalog-root",
+                    str(SCENARIO_DIR),
+                    "--task-assets",
+                    str(assets),
+                    "--output",
+                    str(Path(temp) / "task"),
+                ],
+            )
+            self.assertNotEqual(result.exit_code, 0)
+            self.assertIn('network_mode = "public" is prohibited', result.output)
+
     def test_harbor_task_compiler_deploys_explicit_weakness_catalog(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "catalog"
