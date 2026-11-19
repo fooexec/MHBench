@@ -151,8 +151,9 @@ warehouse components simply to host vulnerabilities.
 
 `Workflow.system_interactions` distinguishes a software integration from a
 human handoff. Cross-system `Flow` edges must be backed by a declared
-`service_integration`; co-membership in a broad workflow or a `human_handoff`
-does not authorize an invented technical edge.
+`service_integration`, and every declared `service_integration` must have a
+concrete flow in the range plan. Co-membership in a broad workflow or a
+`human_handoff` does not authorize an invented technical edge.
 
 ## Readiness snapshot
 

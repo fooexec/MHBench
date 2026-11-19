@@ -220,6 +220,23 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
                 range=RangePlan.model_validate(range_plan),
             )
 
+    def test_declared_service_integration_requires_a_concrete_flow(self):
+        scenario = load_yaml(SCENARIO_DIR / "scenario.yaml")
+        range_plan = load_yaml(SCENARIO_DIR / "range-plan.yaml")
+        range_plan["flows"] = [
+            flow
+            for flow in range_plan["flows"]
+            if flow["id"] != "port-app-to-dispatch"
+        ]
+        with self.assertRaisesRegex(
+            ValidationError,
+            "has no corresponding concrete service flow",
+        ):
+            ScenarioBundle(
+                scenario=ScenarioPlan.model_validate(scenario),
+                range=RangePlan.model_validate(range_plan),
+            )
+
     def test_agent_cannot_attach_directly_to_egress_or_internal_network(self):
         raw = load_yaml(SCENARIO_DIR / "range-plan.yaml")
         for network_id, exposure in (

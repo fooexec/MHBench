@@ -208,7 +208,8 @@ specification through independent backend adapters:
 
 Represent cross-system relationships explicitly as either technical service
 integrations or human handoffs. A service/network edge cannot be inferred just
-because two systems appear in the same business workflow.
+because two systems appear in the same business workflow, and a claimed
+technical integration must map back to at least one concrete service flow.
 
 ```text
 Human brief + deterministic MHBench range skeleton

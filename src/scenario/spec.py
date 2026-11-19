@@ -1121,4 +1121,20 @@ class ScenarioBundle(SpecModel):
                     "explicit service_integration; a human_handoff does not "
                     "authorize a technical service edge"
                 )
+        for workflow in self.scenario.workflows:
+            for interaction in workflow.system_interactions:
+                if interaction.kind != "service_integration":
+                    continue
+                realized = any(
+                    interaction.from_system_id
+                    in service_by_id[flow.from_service].system_ids
+                    and interaction.to_system_id
+                    in service_by_id[flow.to_service].system_ids
+                    for flow in self.range.flows
+                )
+                if not realized:
+                    raise ValueError(
+                        f"service integration {interaction.id} in workflow "
+                        f"{workflow.id} has no corresponding concrete service flow"
+                    )
         return self
