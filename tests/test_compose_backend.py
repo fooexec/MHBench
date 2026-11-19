@@ -156,6 +156,34 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "duplicate actor id"):
             ScenarioPlan.model_validate(scenario)
 
+    def test_scenario_schema_10_rejects_system_interactions(self):
+        scenario = load_yaml(SCENARIO_DIR / "scenario.yaml")
+        scenario["schema_version"] = "1.0"
+        with self.assertRaisesRegex(
+            ValidationError, "requires scenario schema 1.1"
+        ):
+            ScenarioPlan.model_validate(scenario)
+
+    def test_range_schema_10_rejects_cve_inspired_analogs(self):
+        range_plan = load_yaml(SMOKE_DIR / "range-plan.yaml")
+        range_plan["weakness_candidates"] = [self._cve_analog_candidate()]
+        with self.assertRaisesRegex(
+            ValidationError, "cve_inspired_analog requires range-plan schema 1.1"
+        ):
+            RangePlan.model_validate(range_plan)
+
+    def test_scenario_and_range_schema_versions_must_match(self):
+        scenario = load_yaml(SCENARIO_DIR / "scenario.yaml")
+        range_plan = load_yaml(SCENARIO_DIR / "range-plan.yaml")
+        range_plan["schema_version"] = "1.0"
+        with self.assertRaisesRegex(
+            ValidationError, "schema versions must match"
+        ):
+            ScenarioBundle(
+                scenario=ScenarioPlan.model_validate(scenario),
+                range=RangePlan.model_validate(range_plan),
+            )
+
     def test_workflow_actor_department_must_match_participating_systems(self):
         scenario = load_yaml(SCENARIO_DIR / "scenario.yaml")
         scenario["actors"][1]["department_id"] = "automation-engineering"
@@ -611,6 +639,7 @@ class ComposeBackendTest(unittest.TestCase):
         self.assertEqual(plan.candidate_paths[0].status, "approved")
 
     def _convert_to_cve_analog(self, raw, index):
+        raw["schema_version"] = "1.1"
         candidate = raw["weakness_candidates"][index]
         candidate["source_track"] = "cve_inspired_analog"
         candidate.pop("fix_commit", None)
@@ -758,15 +787,16 @@ class ComposeBackendTest(unittest.TestCase):
                 render_compose(bundle, catalog, Path(temp), Path(temp) / "out")
 
     def test_selected_weaknesses_render_reviewed_file_overlays(self):
-        raw_bundle = load_bundle(
-            SMOKE_DIR / "scenario.yaml",
-            SMOKE_DIR / "range-plan.yaml",
-        )
+        scenario_data = load_yaml(SMOKE_DIR / "scenario.yaml")
+        scenario_data["schema_version"] = "1.1"
         plan_data = self._convert_primary_to_cve_analog(
             self._three_node_plan()
         )
         plan = RangePlan.model_validate(plan_data)
-        bundle = raw_bundle.model_copy(update={"range": plan})
+        bundle = ScenarioBundle(
+            scenario=ScenarioPlan.model_validate(scenario_data),
+            range=plan,
+        )
         catalog_raw = load_yaml(SMOKE_DIR / "service-catalog.yaml")
         catalog_raw["services"][1]["build_target"] = "runtime"
         catalog = ServiceCatalog.model_validate(
@@ -1370,6 +1400,10 @@ class ComposeBackendTest(unittest.TestCase):
                 self._three_node_plan()
             )
             range_file.write_text(yaml.safe_dump(range_plan))
+            scenario_file = Path(temp) / "scenario.yaml"
+            scenario = load_yaml(SMOKE_DIR / "scenario.yaml")
+            scenario["schema_version"] = "1.1"
+            scenario_file.write_text(yaml.safe_dump(scenario))
             weakness_catalog_file = Path(temp) / "weaknesses.yaml"
             weakness_catalog_file.write_text(
                 yaml.safe_dump(
@@ -1401,7 +1435,7 @@ class ComposeBackendTest(unittest.TestCase):
                 render_harbor_task,
                 [
                     "--scenario",
-                    str(SMOKE_DIR / "scenario.yaml"),
+                    str(scenario_file),
                     "--range-plan",
                     str(range_file),
                     "--catalog",

@@ -669,7 +669,7 @@ class ResourceGoal(SpecModel):
 class ScenarioPlan(SpecModel):
     """Level 1: business scenario, independent of concrete vulnerabilities."""
 
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.0", "1.1"]
     id: str
     title: str
     summary: str
@@ -708,6 +708,11 @@ class ScenarioPlan(SpecModel):
                 raise ValueError(
                     f"workflow {workflow.id} repeats a system interaction id"
                 )
+            if self.schema_version == "1.0" and workflow.system_interactions:
+                raise ValueError(
+                    f"workflow {workflow.id} uses system_interactions, which "
+                    "requires scenario schema 1.1"
+                )
             for interaction in workflow.system_interactions:
                 if (
                     interaction.from_system_id not in workflow.system_ids
@@ -723,7 +728,7 @@ class ScenarioPlan(SpecModel):
 class RangePlan(SpecModel):
     """Level 2: realize a ScenarioPlan as catalog-backed cyber-range assets."""
 
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.0", "1.1"]
     scenario_id: str
     entry_state: EntryState
     agent: AgentEnvironment | None = None
@@ -753,6 +758,14 @@ class RangePlan(SpecModel):
 
     @model_validator(mode="after")
     def validate_internal_references(self) -> "RangePlan":
+        if self.schema_version == "1.0" and any(
+            candidate.source_track == "cve_inspired_analog"
+            for candidate in self.weakness_candidates
+        ):
+            raise ValueError(
+                "cve_inspired_analog requires range-plan schema 1.1"
+            )
+
         def unique(items: list[object], label: str) -> dict[str, object]:
             indexed: dict[str, object] = {}
             for item in items:
@@ -1000,6 +1013,10 @@ class ScenarioBundle(SpecModel):
             raise ValueError(
                 f"range.scenario_id {self.range.scenario_id!r} does not match "
                 f"scenario.id {self.scenario.id!r}"
+            )
+        if self.range.schema_version != self.scenario.schema_version:
+            raise ValueError(
+                "scenario and range-plan schema versions must match"
             )
         departments = {item.id for item in self.scenario.departments}
         actors = {item.id for item in self.scenario.actors}
