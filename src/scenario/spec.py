@@ -7,7 +7,9 @@ models capture business semantics and portable service-level deployment intent.
 
 from __future__ import annotations
 
+import re
 from datetime import date
+from pathlib import PurePosixPath
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -55,6 +57,45 @@ class Workflow(SpecModel):
     outcome: str
 
 
+class NamedVolume(SpecModel):
+    """A Compose-managed volume; host bind mounts are intentionally excluded."""
+
+    id: str
+    purpose: str
+
+    @field_validator("id")
+    @classmethod
+    def validate_volume_name(cls, value: str) -> str:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", value):
+            raise ValueError(
+                "named volume id must be a Compose name, not a host path"
+            )
+        return value
+
+
+class VolumeMount(SpecModel):
+    """Mount a declared Compose volume at one container path."""
+
+    volume_id: str
+    target: str
+    read_only: bool = False
+
+    @field_validator("target")
+    @classmethod
+    def validate_mount_target(cls, value: str) -> str:
+        target = PurePosixPath(value)
+        if (
+            not target.is_absolute()
+            or ".." in target.parts
+            or target == PurePosixPath("/")
+        ):
+            raise ValueError(
+                "named-volume mount target must be an absolute container path "
+                "other than '/' and cannot contain '..'"
+            )
+        return value
+
+
 class ServiceInstance(SpecModel):
     id: str
     system_ids: list[str] = Field(min_length=1)
@@ -65,6 +106,30 @@ class ServiceInstance(SpecModel):
     ports: list[int] = Field(default_factory=list)
     depends_on: list[str] = Field(default_factory=list)
     environment: dict[str, str] = Field(default_factory=dict)
+    entrypoint: str | list[str] | None = None
+    command: str | list[str] | None = None
+    volume_mounts: list[VolumeMount] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_runtime_overrides(self) -> "ServiceInstance":
+        for label, value in (
+            ("entrypoint", self.entrypoint),
+            ("command", self.command),
+        ):
+            if value is not None and (
+                not value
+                or isinstance(value, list)
+                and any(not item for item in value)
+            ):
+                raise ValueError(
+                    f"service {self.id} {label} cannot be empty"
+                )
+        targets = [mount.target for mount in self.volume_mounts]
+        if len(targets) != len(set(targets)):
+            raise ValueError(
+                f"service {self.id} has duplicate named-volume mount targets"
+            )
+        return self
 
 
 class WeaknessInstance(SpecModel):
@@ -549,6 +614,7 @@ class RangePlan(SpecModel):
         "deterministic-business-evidence-first"
     )
     services: list[ServiceInstance] = Field(min_length=1)
+    volumes: list[NamedVolume] = Field(default_factory=list)
     weakness_candidates: list[WeaknessCandidate] = Field(default_factory=list)
     artifact_observations: list[ArtifactObservation] = Field(default_factory=list)
     weaknesses: list[WeaknessInstance] = Field(default_factory=list)
@@ -583,6 +649,7 @@ class RangePlan(SpecModel):
         weaknesses = unique(self.weaknesses, "weakness")
         candidates = unique(self.weakness_candidates, "weakness candidate")
         networks = unique(self.networks, "network")
+        volumes = unique(self.volumes, "volume")
         unique(self.flows, "flow")
         unique(self.attack_transitions, "attack transition")
         unique(self.candidate_paths, "candidate path")
@@ -595,6 +662,8 @@ class RangePlan(SpecModel):
         for service in self.services:
             for dependency in service.depends_on:
                 require(dependency, services, "service")
+            for mount in service.volume_mounts:
+                require(mount.volume_id, volumes, "volume")
 
         for weakness in self.weaknesses:
             require(weakness.candidate_id, candidates, "weakness candidate")

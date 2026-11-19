@@ -439,6 +439,16 @@ def render_compose(
             }
         if instance.environment:
             service["environment"] = instance.environment
+        if instance.entrypoint is not None:
+            service["entrypoint"] = instance.entrypoint
+        if instance.command is not None:
+            service["command"] = instance.command
+        if instance.volume_mounts:
+            service["volumes"] = [
+                f"{mount.volume_id}:{mount.target}"
+                + (":ro" if mount.read_only else "")
+                for mount in instance.volume_mounts
+            ]
         service["networks"] = attached_networks[instance.id]
         compose_services[instance.id] = service
 
@@ -483,6 +493,10 @@ def render_compose(
         "services": compose_services,
         "networks": compose_networks,
     }
+    if bundle.range.volumes:
+        document["volumes"] = {
+            volume.id: {} for volume in bundle.range.volumes
+        }
     output_path = output_dir / "docker-compose.yaml"
     output_path.write_text(
         yaml.safe_dump(document, sort_keys=False, default_flow_style=False)

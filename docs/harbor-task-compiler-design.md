@@ -68,6 +68,13 @@ East Quay vulnerabilities. The smoke fixture lives in
 exercised with Docker Compose and Harbor 0.25.0. This proves local integration
 only, not yet stock-Harbor portability across other Harbor versions.
 
+Range services can override `entrypoint`/`command` and mount declared
+Compose-managed named volumes at validated absolute container paths. Host bind
+mounts are intentionally not representable in the scenario schema. This
+supports repeatable service bootstrap/state sharing while preserving the
+host-filesystem boundary; service-to-service secrets should use explicit
+read-only mounts where possible.
+
 The task compiler treats Harbor `network_mode = "public"` as prohibited and
 fails closed if it appears in any parsed task TOML section. Use a closed
 network policy instead; service reachability belongs in the Compose topology

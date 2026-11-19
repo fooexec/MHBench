@@ -107,6 +107,45 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
         ):
             RangePlan.model_validate(raw)
 
+    def test_range_volumes_reject_host_paths_and_undeclared_mounts(self):
+        with self.assertRaisesRegex(ValidationError, "not a host path"):
+            RangePlan.model_validate(
+                {
+                    **load_yaml(SMOKE_DIR / "range-plan.yaml"),
+                    "volumes": [
+                        {
+                            "id": "/var/run/docker.sock",
+                            "purpose": "Invalid host bind mount.",
+                        }
+                    ],
+                }
+            )
+
+        raw = load_yaml(SMOKE_DIR / "range-plan.yaml")
+        raw["services"][0]["volume_mounts"] = [
+            {
+                "volume_id": "undeclared-data",
+                "target": "/var/lib/service-data",
+                "read_only": True,
+            }
+        ]
+        with self.assertRaisesRegex(ValidationError, "unknown volume reference"):
+            RangePlan.model_validate(raw)
+
+    def test_named_volume_mount_target_rejects_parent_traversal(self):
+        raw = load_yaml(SMOKE_DIR / "range-plan.yaml")
+        raw["volumes"] = [{"id": "service-data", "purpose": "Fixture volume."}]
+        raw["services"][0]["volume_mounts"] = [
+            {
+                "volume_id": "service-data",
+                "target": "/var/lib/../../etc",
+            }
+        ]
+        with self.assertRaisesRegex(
+            ValidationError, "cannot contain '..'"
+        ):
+            RangePlan.model_validate(raw)
+
     def test_validator_reports_selection_band_separately_from_triage_state(self):
         result = CliRunner().invoke(
             validate_scenario,
@@ -704,6 +743,86 @@ class ComposeBackendTest(unittest.TestCase):
                     SMOKE_DIR,
                     Path(temp) / "rendered",
                 )
+
+    def test_named_volumes_and_runtime_overrides_render_portably(self):
+        raw = load_yaml(SMOKE_DIR / "range-plan.yaml")
+        raw["volumes"] = [
+            {
+                "id": "forgejo-data",
+                "purpose": "Persistent Forgejo application data.",
+            },
+            {
+                "id": "runner-registration",
+                "purpose": "Registration token shared with the Runner at startup.",
+            },
+        ]
+        raw["services"][0].update(
+            {
+                "entrypoint": ["/bin/sh", "-c"],
+                "command": ["sleep infinity"],
+                "volume_mounts": [
+                    {
+                        "volume_id": "forgejo-data",
+                        "target": "/data",
+                    },
+                    {
+                        "volume_id": "runner-registration",
+                        "target": "/run/runner",
+                        "read_only": True,
+                    },
+                ],
+            }
+        )
+        plan = RangePlan.model_validate(raw)
+        bundle = load_bundle(
+            SMOKE_DIR / "scenario.yaml",
+            SMOKE_DIR / "range-plan.yaml",
+        ).model_copy(update={"range": plan})
+        catalog = ServiceCatalog.model_validate(
+            load_yaml(SMOKE_DIR / "service-catalog.yaml")
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            compose_file = render_compose(
+                bundle,
+                catalog,
+                catalog_root=SMOKE_DIR,
+                output_dir=Path(temp) / "environment",
+            )
+            rendered = yaml.safe_load(compose_file.read_text())
+            service = rendered["services"]["status-page"]
+            self.assertEqual(service["entrypoint"], ["/bin/sh", "-c"])
+            self.assertEqual(service["command"], ["sleep infinity"])
+            self.assertEqual(
+                service["volumes"],
+                [
+                    "forgejo-data:/data",
+                    "runner-registration:/run/runner:ro",
+                ],
+            )
+            self.assertEqual(
+                rendered["volumes"],
+                {
+                    "forgejo-data": {},
+                    "runner-registration": {},
+                },
+            )
+            subprocess.run(
+                [
+                    "docker",
+                    "compose",
+                    "--project-directory",
+                    str(compose_file.parent),
+                    "-f",
+                    str(SMOKE_DIR / "harness-compose.yaml"),
+                    "-f",
+                    str(compose_file),
+                    "config",
+                    "--quiet",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
 
     def test_selected_weakness_must_reference_a_listed_candidate(self):
         raw = load_yaml(SMOKE_DIR / "range-plan.yaml")
