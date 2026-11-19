@@ -1192,4 +1192,19 @@ class ScenarioBundle(SpecModel):
                         f"service integration {interaction.id} in workflow "
                         f"{workflow.id} has no corresponding concrete service flow"
                     )
+
+        attached_networks: dict[str, set[str]] = {
+            service_id: set() for service_id in service_by_id
+        }
+        for attachment in self.range.attachments:
+            attached_networks[attachment.service_id].add(attachment.network_id)
+        for flow in self.range.flows:
+            if not (
+                attached_networks[flow.from_service]
+                & attached_networks[flow.to_service]
+            ):
+                raise ValueError(
+                    f"flow {flow.id} connects services without a shared "
+                    "network attachment"
+                )
         return self

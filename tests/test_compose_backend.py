@@ -344,6 +344,27 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
             f"{sorted(runtime_dependencies - declared_flows)}",
         )
 
+    def test_service_flow_requires_a_shared_network_attachment(self):
+        scenario = load_yaml(SCENARIO_DIR / "scenario.yaml")
+        range_plan = load_yaml(SCENARIO_DIR / "range-plan.yaml")
+        range_plan["attachments"] = [
+            attachment
+            for attachment in range_plan["attachments"]
+            if not (
+                attachment["service_id"] == "yard-dispatch"
+                and attachment["network_id"] == "ot-segment"
+            )
+        ]
+        with self.assertRaisesRegex(
+            ValidationError,
+            "flow dispatch-to-broker connects services without a "
+            "shared network attachment",
+        ):
+            ScenarioBundle(
+                scenario=ScenarioPlan.model_validate(scenario),
+                range=RangePlan.model_validate(range_plan),
+            )
+
     def test_human_handoff_does_not_authorize_a_service_flow(self):
         scenario = load_yaml(SCENARIO_DIR / "scenario.yaml")
         range_plan = load_yaml(SCENARIO_DIR / "range-plan.yaml")

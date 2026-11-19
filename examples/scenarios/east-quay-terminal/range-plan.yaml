@@ -296,7 +296,10 @@ weakness_candidates:
     a policy-realistic route approval and data-plane bridge are reproduced.
 - id: openwes-enabled-plugin-revision-write
   source_track: silent_upstream_fix
-  source_ref: pentest_design/CANDIDATES.md row 442
+  source_ref: >-
+    Historical East Quay research lead. The former row-442 citation is stale:
+    pentest_design/CANDIDATES.md at origin/main 9522a44 assigns row 442 to
+    Gibbon Crowd Assessment SQLi; Open WES is not in that candidate snapshot.
   product: Open WES (jingsewu/open-wes)
   vulnerable_baseline: bafb6ecc18c98074e46408108f9ff2f4cadf42a5
   fix_commit: b41e24f128d6aadb0ad24f0f153adb74b4c8fbf3
@@ -336,6 +339,10 @@ weakness_candidates:
   public_poc_screen: pending
   live_reproduction: pass
   notes:
+  - >-
+    This is retained as a rejected historical lead, not as a candidate sourced
+    from the current pentest_design candidate pool. Reconcile against a future
+    pool entry only if the candidate is explicitly reintroduced there.
   - >-
     Local Compose A/B test built baseline parent bafb6ec and fixed b41e24f
     with Java 17, then ran gateway, WES, station, MySQL, Redis, and Nacos on
