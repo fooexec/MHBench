@@ -46,11 +46,22 @@ def main(scenario_file: Path, range_file: Path) -> None:
             for status in ("selected", "candidate", "rejected")
             if triage[status]
         )
+        tracks = Counter(item.source_track for item in range_plan.weakness_candidates)
+        track_summary = ", ".join(
+            f"{track}={tracks[track]}"
+            for track in (
+                "cve_no_public_poc",
+                "silent_upstream_fix",
+                "deployed_weakness",
+                "cve_inspired_analog",
+            )
+        )
         click.echo(
             f"{len(range_plan.weakness_candidates)} weakness candidates "
             f"({band_summary}; triage: {triage_summary}); "
             "none imply selection or deployment"
         )
+        click.echo(f"candidate source tracks: {track_summary}")
         direct = range_plan.candidates_directly_reachable_from_entry()
         click.echo(
             f"{len(direct)} candidates have attacker capabilities satisfied at entry "
