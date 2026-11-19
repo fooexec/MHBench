@@ -73,7 +73,11 @@ network policy instead; service reachability belongs in the Compose topology
 and must be verified with positive and negative connectivity checks. This
 does not imply that `no-network` alone creates the desired internal topology:
 the Harbor agent must still be attached only to the explicitly intended
-service-facing networks.
+service-facing networks. The range schema also rejects direct Agent attachment
+to `internal`, `management`, or `egress` networks, and rejects an `agent`
+network with no target service attached. Controlled model/API egress, if needed,
+must be implemented as a separately reviewed allowlist/proxy path rather than
+by placing the Agent on an externally routed network.
 
 ## Recommendation
 

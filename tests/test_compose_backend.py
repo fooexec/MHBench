@@ -74,6 +74,39 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
         ):
             self._east_quay_bundle(scenario)
 
+    def test_agent_cannot_attach_directly_to_egress_or_internal_network(self):
+        raw = load_yaml(SCENARIO_DIR / "range-plan.yaml")
+        for network_id, exposure in (
+            ("agent-private-test", "internal"),
+            ("attacker-egress", "egress"),
+        ):
+            with self.subTest(network_id=network_id):
+                case = yaml.safe_load(yaml.safe_dump(raw))
+                case["networks"].append(
+                    {
+                        "id": network_id,
+                        "purpose": "Negative validation fixture.",
+                        "exposure": exposure,
+                    }
+                )
+                case["agent"]["network_ids"] = [network_id]
+                with self.assertRaisesRegex(
+                    ValidationError, "agent may attach only to agent-exposure"
+                ):
+                    RangePlan.model_validate(case)
+
+    def test_agent_exposure_network_must_reach_a_target_service(self):
+        raw = load_yaml(SCENARIO_DIR / "range-plan.yaml")
+        raw["attachments"] = [
+            attachment
+            for attachment in raw["attachments"]
+            if attachment["network_id"] != "agent-edge"
+        ]
+        with self.assertRaisesRegex(
+            ValidationError, "agent-exposure network agent-edge has no"
+        ):
+            RangePlan.model_validate(raw)
+
     def test_validator_reports_selection_band_separately_from_triage_state(self):
         result = CliRunner().invoke(
             validate_scenario,

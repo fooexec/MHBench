@@ -658,6 +658,21 @@ class RangePlan(SpecModel):
         if self.agent:
             for network_id in self.agent.network_ids:
                 require(network_id, networks, "network")
+                network = networks[network_id]
+                assert isinstance(network, Network)
+                if network.exposure != "agent":
+                    raise ValueError(
+                        f"agent may attach only to agent-exposure networks; "
+                        f"{network_id} is {network.exposure!r}"
+                    )
+                if not any(
+                    attachment.network_id == network_id
+                    for attachment in self.attachments
+                ):
+                    raise ValueError(
+                        f"agent-exposure network {network_id} has no "
+                        "attached target service"
+                    )
         for flow in self.flows:
             require(flow.from_service, services, "service")
             require(flow.to_service, services, "service")
