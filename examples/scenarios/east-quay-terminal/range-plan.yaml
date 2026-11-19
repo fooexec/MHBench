@@ -297,10 +297,10 @@ weakness_candidates:
 - id: openwes-enabled-plugin-revision-write
   source_track: silent_upstream_fix
   source_ref: >-
-    Historical East Quay research lead. The former row-442 citation is stale:
-    pentest_design/CANDIDATES.md at origin/main
-    9522a44ee7225782a5737ee672552f6de04b4522 assigns row 442 to Gibbon Crowd
-    Assessment SQLi; Open WES is not in that candidate snapshot.
+    Historical East Quay research lead. Compared with
+    pentest_design/CANDIDATES.md@9522a44ee7225782a5737ee672552f6de04b4522 row
+    442, which is Gibbon Crowd Assessment SQLi; Open WES is absent from that
+    snapshot.
   product: Open WES (jingsewu/open-wes)
   vulnerable_baseline: bafb6ecc18c98074e46408108f9ff2f4cadf42a5
   fix_commit: b41e24f128d6aadb0ad24f0f153adb74b4c8fbf3

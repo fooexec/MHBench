@@ -495,6 +495,20 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which("docker"), "Docker CLI is not installed")
 class ComposeBackendTest(unittest.TestCase):
+    def test_candidate_pool_row_references_require_immutable_snapshot(self):
+        raw = load_yaml(SCENARIO_DIR / "range-plan.yaml")
+        candidate = next(
+            item
+            for item in raw["weakness_candidates"]
+            if item["id"] == "nanomq-407-topic-alias-http-acl-bypass"
+        )
+        candidate["source_ref"] = "pentest_design/CANDIDATES.md row 407"
+        with self.assertRaisesRegex(
+            ValidationError,
+            "must pin pentest_design/CANDIDATES.md row references",
+        ):
+            RangePlan.model_validate(raw)
+
     def _cve_candidate(self):
         families = [
             "cve_org_record",

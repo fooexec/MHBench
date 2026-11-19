@@ -51,6 +51,9 @@ All security-relevant selection is explicit. In particular:
 
 - MHBench+ must not randomly select a candidate, service, vulnerability,
   attack-path edge, or score.
+- A row reference into `pentest_design/CANDIDATES.md` must pin the full
+  40-character source commit in `source_ref`; mutable row numbers are not
+  reproducible provenance and are rejected by the validator.
 - `candidate_paths` are composition hypotheses, not a claim that an agent
   must follow that path.
 - A candidate is not deployable until its provenance, public-reproducer

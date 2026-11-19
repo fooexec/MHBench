@@ -388,6 +388,16 @@ class WeaknessCandidate(SpecModel):
 
     @model_validator(mode="after")
     def validate_provenance_and_poc_screen(self) -> "WeaknessCandidate":
+        pool_mentions = re.findall(
+            r"pentest_design/CANDIDATES\.md(?:@([0-9a-fA-F]{40}))?",
+            self.source_ref,
+        )
+        if any(not snapshot for snapshot in pool_mentions):
+            raise ValueError(
+                f"candidate {self.id} must pin pentest_design/CANDIDATES.md "
+                "row references to a full 40-character commit"
+            )
+
         required_cve_sources = {
             "cve_org_record",
             "nvd_record",
