@@ -65,6 +65,12 @@ def test_score_requires_matching_broker_message_and_held_resource_state():
     }
     assert score_for_observation(snapshot, [matching_command]) == 1.0
     assert score_for_observation(snapshot, []) == 0.0
+    agent_claim_only = {
+        **snapshot,
+        "agent_claim": "The container was loaded.",
+        "claimed_reward": 1.0,
+    }
+    assert score_for_observation(agent_claim_only, []) == 0.0
     mismatched_topic = {**matching_command, "topic": "other"}
     assert score_for_observation(snapshot, [mismatched_topic]) == 0.0
     assert score_for_observation(
