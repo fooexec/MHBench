@@ -823,6 +823,60 @@ class ComposeBackendTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
             )
+            compose_args = [
+                "docker",
+                "compose",
+                "--project-name",
+                f"mhbench-volume-{Path(temp).name}",
+                "--project-directory",
+                str(compose_file.parent),
+                "-f",
+                str(SMOKE_DIR / "harness-compose.yaml"),
+                "-f",
+                str(compose_file),
+            ]
+            try:
+                subprocess.run(
+                    [
+                        *compose_args,
+                        "run",
+                        "--build",
+                        "--rm",
+                        "--no-deps",
+                        "--entrypoint",
+                        "sh",
+                        "status-page",
+                        "-c",
+                        "printf 'volume-marker\\n' > /data/marker",
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                persisted = subprocess.run(
+                    [
+                        *compose_args,
+                        "run",
+                        "--rm",
+                        "--no-deps",
+                        "--entrypoint",
+                        "sh",
+                        "status-page",
+                        "-c",
+                        "cat /data/marker",
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(persisted.stdout.strip(), "volume-marker")
+            finally:
+                subprocess.run(
+                    [*compose_args, "down", "--volumes", "--remove-orphans"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
 
     def test_selected_weakness_must_reference_a_listed_candidate(self):
         raw = load_yaml(SMOKE_DIR / "range-plan.yaml")

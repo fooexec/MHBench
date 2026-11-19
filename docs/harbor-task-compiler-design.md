@@ -73,7 +73,9 @@ Compose-managed named volumes at validated absolute container paths. Host bind
 mounts are intentionally not representable in the scenario schema. This
 supports repeatable service bootstrap/state sharing while preserving the
 host-filesystem boundary; service-to-service secrets should use explicit
-read-only mounts where possible.
+read-only mounts where possible. The Compose smoke test writes through one
+container and verifies the data from a fresh container using the same named
+volume.
 
 The task compiler treats Harbor `network_mode = "public"` as prohibited and
 fails closed if it appears in any parsed task TOML section. Use a closed
