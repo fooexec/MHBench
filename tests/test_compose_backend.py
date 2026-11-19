@@ -1353,17 +1353,21 @@ class ComposeBackendTest(unittest.TestCase):
             self.assertTrue((output / "build/status-page/index.html").is_file())
             self.assertTrue((output / "Dockerfile").is_file())
             compose = yaml.safe_load(compose_file.read_text())
-            self.assertEqual(compose["services"]["main"]["networks"], ["agent-edge"])
-            self.assertEqual(compose["services"]["main"]["cap_drop"], ["ALL"])
-            self.assertEqual(compose["services"]["main"]["mem_limit"], "512m")
-            self.assertNotIn("build", compose["services"]["main"])
+            main = compose["services"]["main"]
+            target = compose["services"]["status-page"]
+            self.assertEqual(main["networks"], ["agent-edge"])
+            self.assertEqual(main["cap_drop"], ["ALL"])
+            self.assertEqual(main["mem_limit"], "512m")
+            self.assertNotIn("build", main)
+            self.assertEqual(target["restart"], "unless-stopped")
+            self.assertIn("healthcheck", target)
             self.assertEqual(
-                compose["services"]["main"]["depends_on"],
+                main["depends_on"],
                 {"status-page": {"condition": "service_healthy"}},
             )
-            self.assertEqual(compose["services"]["status-page"]["mem_limit"], "768m")
+            self.assertEqual(target["mem_limit"], "768m")
             self.assertEqual(
-                compose["services"]["status-page"]["healthcheck"]["start_period"],
+                target["healthcheck"]["start_period"],
                 "90s",
             )
             subprocess.run(
