@@ -123,6 +123,16 @@ and resource goals are tracked in `range-plan.yaml`. A candidate is not part of
 the playable task unless it is explicitly selected, implemented, and validated
 there. In particular, Warehouse Execution is included as a real subsystem, not
 as an assertion that its publicly disclosed issues are eligible scoring nodes.
+The candidate pool snapshot `pentest_design/CANDIDATES.md@66ced03` adds NanoMQ
+rows #445 and #447–#449 as unselected leads on the existing broker. They remain
+conditional: #445, #448, and #449 need runtime A/B validation; #447 must first
+prove a write-side ACL bypass rather than the upstream false-rejection behavior.
+The current broker is still 0.25.6 with `no_match=deny`, so the #448
+`no_match=allow` precondition and #449 multi-listener `mount_point` topology
+are not present. The low-privilege HTTP carrier entry also does not currently
+provide MQTT credentials or a yard ClientID for #445. Odoo #446 remains
+unselected and outside the service graph; it requires a separate internal
+inventory identity and does not close the carrier-entry gap.
 Apache Doris remains an unselected analytics-warehouse lead: its local-file
 read behavior has only one-sided component evidence, no fixed runtime pair or
 blind agent protocol trial, and no demonstrated link to the yard-load outcome.

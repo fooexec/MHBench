@@ -278,6 +278,139 @@ weakness_candidates:
     The candidate row specifies a two-principal MQTT persistent-session
     reproduction with queued QoS delivery, not ClientID enumeration. Keep the
     existing rejected row #407 separate; it is not evidence for this flaw.
+- id: nanomq-447-topic-alias-http-acl-ordering
+  source_track: silent_upstream_fix
+  source_ref: pentest_design/CANDIDATES.md@091556d95681268c18c618703fb69ac7ab5496f8 row 447
+  product: NanoMQ (nanomq/nanomq)
+  vulnerable_baseline: 0.25.6
+  fix_commit: 77529d8c782d2f06758cae0c0832f4201f3b7026
+  mechanism: >-
+    MQTT v5 topic aliases are resolved after the HTTP ACL stage in the
+    vulnerable release. An alias-reusing PUBLISH therefore reaches that stage
+    with an empty topic; whether this causes a false rejection or ACL bypass
+    depends on the enabled authorization configuration.
+  precondition: >-
+    The attacker can authenticate to the broker with MQTT v5 and can establish
+    and reuse a topic alias against an HTTP-ACL-configured listener.
+  requires_capabilities:
+  - nanomq:mqttv5:authenticated_client
+  - nanomq:mqttv5:topic_alias_reuse
+  grants_capabilities:
+  - nanomq:mqttv5:alias_http_acl_outcome_control
+  resource_effects:
+  - integrity:yard-command-topic
+  environment_preconditions:
+  - The broker is NanoMQ 0.25.6 with HTTP ACL enabled for the tested listener.
+  - The A/B test must determine whether an ACL-denied aliased publish is admitted or rejected.
+  - The alias must resolve to an East Quay yard command topic for any write-side effect.
+  business_fit: >-
+    This is the existing Yard Message Network broker and exercises a
+    nontrivial MQTT v5 authorization boundary.
+  selection_band: adjacent
+  selection_rationale: >-
+    Conditional existing-service candidate with a released vulnerable/fixed
+    pair and MQTT 5 protocol cost. Do not score as a write-side weakness until
+    the 0.25.6/0.25.7 A/B establishes unauthorized admission under the exact
+    East Quay HTTP-ACL configuration. The current fail-closed configuration
+    may only expose a false-rejection behavior.
+  triage_status: candidate
+  artifact_pair_status: registry-pair
+  public_poc_screen: pending
+  case_role: chain_tissue
+  live_reproduction: pending
+  notes:
+  - >-
+    The upstream fix commit includes maintainer regression tests for both
+    all-auth-disabled and ACL-enabled cases. Review their disclosure status
+    and do not treat the existence of a regression test as proof of a bypass.
+  - >-
+    Candidate row #407 points to the same root-cause area but is separately
+    rejected in this plan because the pinned source returns NOT_AUTHORIZED for
+    its claimed alias-reuse path. Row #447 remains conditional until its
+    configuration-specific direction is demonstrated.
+- id: nanomq-448-shared-subscription-acl-bypass
+  source_track: silent_upstream_fix
+  source_ref: pentest_design/CANDIDATES.md@091556d95681268c18c618703fb69ac7ab5496f8 row 448
+  product: NanoMQ (nanomq/nanomq)
+  vulnerable_baseline: 0.25.7
+  fix_commit: 4ac14f5a
+  mechanism: >-
+    Shared-subscription prefixes are passed to ACL matching as part of the
+    topic filter. With no matching rule and permissive no_match behavior, a
+    denied client may receive messages by subscribing through a $share group.
+  precondition: >-
+    An authenticated MQTT client can create a shared subscription using a
+    topic filter it is otherwise denied.
+  requires_capabilities:
+  - nanomq:mqtt:authenticated_client
+  - nanomq:mqtt:shared_subscription
+  grants_capabilities:
+  - nanomq:mqtt:receive_acl_denied_shared_topic
+  resource_effects:
+  - confidentiality:yard-dispatch-topic-traffic
+  environment_preconditions:
+  - The broker runs NanoMQ 0.25.7 with shared subscriptions and no_match=allow.
+  - An ACL rule denies the carrier principal the target yard topic.
+  - A second principal can publish a QoS 1 message to the denied topic.
+  business_fit: >-
+    This is a read-side authorization defect in the existing yard MQTT broker
+    and can expose yard command or state traffic across principal boundaries.
+  selection_band: adjacent
+  selection_rationale: >-
+    Conditional candidate in the existing service graph with a meaningful
+    MQTT shared-subscription protocol surface. Runtime vulnerable/fixed A/B,
+    ACL configuration compatibility, and public issue/PoC classification
+    remain unresolved; it does not itself authorize a yard load write.
+  triage_status: candidate
+  artifact_pair_status: source-build-required
+  public_poc_screen: pending
+  case_role: chain_tissue
+  live_reproduction: pending
+  notes:
+  - >-
+    The upstream fix references public issue #2463. Review the issue for exact
+    reproducer disclosure before advancing beyond candidate status.
+  - >-
+    The current East Quay broker uses no_match=deny, so this candidate's
+    permissive-fallback precondition is not presently satisfied.
+- id: nanomq-449-mount-point-tenant-isolation
+  source_track: silent_upstream_fix
+  source_ref: pentest_design/CANDIDATES.md@091556d95681268c18c618703fb69ac7ab5496f8 row 449
+  product: NanoMQ (nanomq/nanomq)
+  vulnerable_baseline: 0.25.7
+  fix_commit: 039ecfdc
+  mechanism: >-
+    Default TCP/TLS listeners do not consistently apply configured
+    mount_point namespaces, and HTTP ACL subscription checks can receive
+    unprefixed filters instead of the effective tenant topic.
+  precondition: >-
+    The attacker can authenticate as a client assigned to a tenant-scoped
+    listener and can subscribe or publish to a tenant-local topic.
+  requires_capabilities:
+  - nanomq:mqtt:authenticated_client
+  - nanomq:mqtt:tenant_listener_reachable
+  grants_capabilities:
+  - nanomq:mqtt:cross_tenant_topic_access
+  resource_effects:
+  - confidentiality:cross_tenant_yard-topic
+  environment_preconditions:
+  - The broker has at least two listeners with distinct mount_point values.
+  - HTTP ACL is enabled and enforces tenant-local topic rules.
+  - The exact cross-tenant read or write effect must be established by A/B.
+  business_fit: >-
+    A carrier/yard namespace boundary could fit the existing MQTT edge if the
+    range is deliberately configured as a multi-tenant broker.
+  selection_band: deferred
+  selection_rationale: >-
+    Plausible tenant-isolation candidate on the existing broker, but the
+    current East Quay configuration has one listener and no mount_point
+    separation. It requires a justified multi-tenant business topology and a
+    vulnerable/fixed A/B before selection.
+  triage_status: candidate
+  artifact_pair_status: source-build-required
+  public_poc_screen: pending
+  case_role: chain_tissue
+  live_reproduction: pending
 - id: headscale-208-machine-key-node-key-map-confusion
   source_track: silent_upstream_fix
   source_ref: pentest_design/CANDIDATES.md@9522a44ee7225782a5737ee672552f6de04b4522 row 208

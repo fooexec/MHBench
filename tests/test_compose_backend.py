@@ -486,10 +486,10 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("core=1", result.output)
-        self.assertIn("adjacent=3", result.output)
-        self.assertIn("deferred=4", result.output)
+        self.assertIn("adjacent=5", result.output)
+        self.assertIn("deferred=5", result.output)
         self.assertIn("alternate=1", result.output)
-        self.assertIn("triage: candidate=5, rejected=4", result.output)
+        self.assertIn("triage: candidate=8, rejected=4", result.output)
         self.assertIn("cve_inspired_analog=0", result.output)
         self.assertIn(
             "nanomq-407-topic-alias-http-acl-bypass [rejected/core]: "
@@ -500,6 +500,18 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
             "nanomq-445-cross-user-session-restoration [candidate/adjacent]: "
             "missing nanomq:mqtt:authenticated_client, "
             "nanomq:mqtt:victim_client_id_known",
+            result.output,
+        )
+        self.assertIn(
+            "nanomq-448-shared-subscription-acl-bypass [candidate/adjacent]: "
+            "missing nanomq:mqtt:authenticated_client, "
+            "nanomq:mqtt:shared_subscription",
+            result.output,
+        )
+        self.assertIn(
+            "nanomq-449-mount-point-tenant-isolation [candidate/deferred]: "
+            "missing nanomq:mqtt:authenticated_client, "
+            "nanomq:mqtt:tenant_listener_reachable",
             result.output,
         )
         self.assertIn(
