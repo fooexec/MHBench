@@ -701,6 +701,8 @@ class ScenarioPlan(SpecModel):
                 raise ValueError(f"workflow {workflow.id} repeats an actor")
             if len(workflow.system_ids) != len(set(workflow.system_ids)):
                 raise ValueError(f"workflow {workflow.id} repeats a system")
+            if len(workflow.records) != len(set(workflow.records)):
+                raise ValueError(f"workflow {workflow.id} repeats a record")
             interaction_ids = [
                 interaction.id for interaction in workflow.system_interactions
             ]
@@ -721,6 +723,15 @@ class ScenarioPlan(SpecModel):
                     raise ValueError(
                         f"system interaction {interaction.id} references a "
                         f"system outside workflow {workflow.id}"
+                    )
+                undocumented_records = (
+                    set(interaction.records) - set(workflow.records)
+                )
+                if undocumented_records:
+                    raise ValueError(
+                        f"system interaction {interaction.id} in workflow "
+                        f"{workflow.id} references records not declared by that "
+                        f"workflow: {sorted(undocumented_records)}"
                     )
         return self
 

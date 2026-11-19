@@ -158,7 +158,8 @@ warehouse components simply to host vulnerabilities.
 human handoff. Cross-system `Flow` edges must be backed by a declared
 `service_integration`, and every declared `service_integration` must have a
 concrete flow in the range plan. Co-membership in a broad workflow or a
-`human_handoff` does not authorize an invented technical edge.
+`human_handoff` does not authorize an invented technical edge, and every
+interaction may reference only records declared by that workflow.
 
 ## Readiness snapshot
 

@@ -121,7 +121,14 @@ workflows:
     to_system_id: warehouse-execution
     kind: human_handoff
     records: [carrier-shipment-reference]
-  records: [approved-yard-move, warehouse-outbound-plan, yard-command, equipment-completion]
+  records:
+  - approved-yard-move
+  - warehouse-outbound-plan
+  - carrier-shipment-reference
+  - clearance-decision
+  - dispatch-audit
+  - yard-command
+  - equipment-completion
   outcome: Terminal staff reconcile the same shipment reference across the port request and warehouse plan before the dispatch bridge submits the yard work order.
 - id: warehouse-outbound-staging
   name: Stage an approved shipment for outbound handling

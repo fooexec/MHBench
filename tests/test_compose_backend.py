@@ -184,6 +184,17 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
                 range=RangePlan.model_validate(range_plan),
             )
 
+    def test_system_interaction_records_must_belong_to_workflow(self):
+        scenario = load_yaml(SCENARIO_DIR / "scenario.yaml")
+        scenario["workflows"][1]["system_interactions"][0]["records"] = [
+            "undocumented-record"
+        ]
+        with self.assertRaisesRegex(
+            ValidationError,
+            "references records not declared by that workflow",
+        ):
+            ScenarioPlan.model_validate(scenario)
+
     def test_workflow_actor_department_must_match_participating_systems(self):
         scenario = load_yaml(SCENARIO_DIR / "scenario.yaml")
         scenario["actors"][1]["department_id"] = "automation-engineering"
