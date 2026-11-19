@@ -60,7 +60,9 @@ flowchart LR
   carrier[Carrier account] --> portal[Port Operations portal<br/>PHP]
   portal --> portdb[(Port records<br/>MariaDB)]
   portal --> dispatch[Yard Dispatch<br/>Python integration]
+  dispatch --> portdb
   dispatch --> broker[NanoMQ<br/>MQTT broker]
+  control --> broker
   broker --> control[Yard Control<br/>Python controller]
   broker --> observer[Read-only command observer]
   control --> portdb
@@ -71,8 +73,10 @@ flowchart LR
   gateway --> station[Station API]
   wes --> wdb[(Warehouse MySQL)]
   station --> wdb
+  gateway --> wdb
   wes --> cache[(Redis)]
   station --> cache
+  gateway --> cache
   gateway --> config[Nacos]
   wes --> config
   station --> config

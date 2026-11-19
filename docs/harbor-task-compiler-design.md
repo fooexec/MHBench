@@ -206,6 +206,10 @@ an LLM to improve business semantics and Harbor task assets, with human review
 before deterministic validation and compilation. Compile the approved
 specification through independent backend adapters:
 
+Represent cross-system relationships explicitly as either technical service
+integrations or human handoffs. A service/network edge cannot be inferred just
+because two systems appear in the same business workflow.
+
 ```text
 Human brief + deterministic MHBench range skeleton
                   |

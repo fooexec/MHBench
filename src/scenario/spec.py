@@ -47,12 +47,31 @@ class BusinessSystem(SpecModel):
     department_ids: list[str] = Field(min_length=1)
 
 
+class SystemInteraction(SpecModel):
+    """A business-level link; distinguishes software calls from human handoffs."""
+
+    id: str
+    from_system_id: str
+    to_system_id: str
+    kind: Literal["service_integration", "human_handoff"]
+    records: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def interaction_is_not_self_referential(self) -> "SystemInteraction":
+        if self.from_system_id == self.to_system_id:
+            raise ValueError(
+                f"system interaction {self.id} must connect distinct systems"
+            )
+        return self
+
+
 class Workflow(SpecModel):
     id: str
     name: str
     purpose: str
     actor_ids: list[str] = Field(min_length=1)
     system_ids: list[str] = Field(min_length=1)
+    system_interactions: list[SystemInteraction] = Field(default_factory=list)
     records: list[str] = Field(default_factory=list)
     outcome: str
 
@@ -682,6 +701,22 @@ class ScenarioPlan(SpecModel):
                 raise ValueError(f"workflow {workflow.id} repeats an actor")
             if len(workflow.system_ids) != len(set(workflow.system_ids)):
                 raise ValueError(f"workflow {workflow.id} repeats a system")
+            interaction_ids = [
+                interaction.id for interaction in workflow.system_interactions
+            ]
+            if len(interaction_ids) != len(set(interaction_ids)):
+                raise ValueError(
+                    f"workflow {workflow.id} repeats a system interaction id"
+                )
+            for interaction in workflow.system_interactions:
+                if (
+                    interaction.from_system_id not in workflow.system_ids
+                    or interaction.to_system_id not in workflow.system_ids
+                ):
+                    raise ValueError(
+                        f"system interaction {interaction.id} references a "
+                        f"system outside workflow {workflow.id}"
+                    )
         return self
 
 
@@ -1006,6 +1041,16 @@ class ScenarioBundle(SpecModel):
                     raise ValueError(
                         f"workflow {workflow.id} references unknown system {system_id}"
                     )
+            for interaction in workflow.system_interactions:
+                for system_id in (
+                    interaction.from_system_id,
+                    interaction.to_system_id,
+                ):
+                    if system_id not in systems:
+                        raise ValueError(
+                            f"system interaction {interaction.id} references "
+                            f"unknown system {system_id}"
+                        )
         for service in self.range.services:
             for system_id in service.system_ids:
                 if system_id not in systems:
@@ -1060,16 +1105,20 @@ class ScenarioBundle(SpecModel):
             target = service_by_id[flow.to_service]
             if set(source.system_ids) & set(target.system_ids):
                 continue
-            # A cross-system service flow is accepted only when those systems
-            # participate together in at least one stated business workflow.
+            # Co-membership in a broad workflow is not enough to justify an
+            # invented service edge: require an explicit software integration
+            # distinct from a human handoff.
             related = any(
-                set(source.system_ids) & set(workflow.system_ids)
-                and set(target.system_ids) & set(workflow.system_ids)
+                interaction.kind == "service_integration"
+                and interaction.from_system_id in source.system_ids
+                and interaction.to_system_id in target.system_ids
                 for workflow in self.scenario.workflows
+                for interaction in workflow.system_interactions
             )
             if not related:
                 raise ValueError(
-                    f"flow {flow.id} connects systems without a shared business "
-                    "workflow; add the workflow dependency or remove the flow"
+                    f"flow {flow.id} crosses business systems without an "
+                    "explicit service_integration; a human_handoff does not "
+                    "authorize a technical service edge"
                 )
         return self

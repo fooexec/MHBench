@@ -995,6 +995,12 @@ flows:
   protocol: http
   port: 8081
   purpose: Submit an authorized yard move through the internal integration service.
+- id: dispatch-to-port-database
+  from_service: yard-dispatch
+  to_service: port-db
+  protocol: tcp
+  port: 3306
+  purpose: Read shipment approval and clearance state and persist dispatch audit records.
 - id: dispatch-to-broker
   from_service: yard-dispatch
   to_service: yard-broker
@@ -1007,6 +1013,18 @@ flows:
   protocol: mqtt
   port: 1883
   purpose: Deliver permitted yard work orders to the equipment-control process.
+- id: yard-control-to-broker
+  from_service: yard-control
+  to_service: yard-broker
+  protocol: mqtt
+  port: 1883
+  purpose: Subscribe for work orders and publish equipment completion telemetry.
+- id: yard-control-to-port-database
+  from_service: yard-control
+  to_service: port-db
+  protocol: tcp
+  port: 3306
+  purpose: Check the current shipment state and persist controller-side completion evidence.
 - id: observer-to-broker
   from_service: yard-observer
   to_service: yard-broker

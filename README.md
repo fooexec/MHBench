@@ -77,7 +77,10 @@ The new backend-neutral input has two YAML documents, documented by the schemas
 in `src/scenario/spec.py`:
 
 1. `scenario.yaml` describes the business context: departments, actors,
-   systems, and normal workflows. It does not select vulnerabilities.
+   systems, normal workflows, and explicit system interactions. Interactions
+   distinguish service integrations from human handoffs; shared workflow
+   membership alone does not create a network/API edge. It does not select
+   vulnerabilities.
 2. `range-plan.yaml` realizes that scenario with concrete service references,
    the agent's explicit `entry_state` and separate Harbor `main` environment,
    network placement, service flows,

@@ -177,9 +177,48 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(
             ValidationError,
-            "business systems must participate in at least one workflow",
-        ):
+                "business systems must participate in at least one workflow",
+            ):
             self._east_quay_bundle(scenario)
+
+    def test_east_quay_declares_each_runtime_dependency_as_a_flow(self):
+        bundle = self._east_quay_bundle()
+        declared_flows = {
+            (flow.from_service, flow.to_service)
+            for flow in bundle.range.flows
+        }
+        runtime_dependencies = {
+            (service.id, dependency)
+            for service in bundle.range.services
+            for dependency in service.depends_on
+        }
+        self.assertTrue(
+            runtime_dependencies <= declared_flows,
+            f"runtime service dependencies missing business/data-flow records: "
+            f"{sorted(runtime_dependencies - declared_flows)}",
+        )
+
+    def test_human_handoff_does_not_authorize_a_service_flow(self):
+        scenario = load_yaml(SCENARIO_DIR / "scenario.yaml")
+        range_plan = load_yaml(SCENARIO_DIR / "range-plan.yaml")
+        range_plan["flows"].append(
+            {
+                "id": "invented-warehouse-to-controller-call",
+                "from_service": "warehouse-frontend",
+                "to_service": "yard-control",
+                "protocol": "http",
+                "port": 8082,
+                "purpose": "Invalid edge added only because both systems share a workflow.",
+            }
+        )
+        with self.assertRaisesRegex(
+            ValidationError,
+            "human_handoff does not authorize a technical service edge",
+        ):
+            ScenarioBundle(
+                scenario=ScenarioPlan.model_validate(scenario),
+                range=RangePlan.model_validate(range_plan),
+            )
 
     def test_agent_cannot_attach_directly_to_egress_or_internal_network(self):
         raw = load_yaml(SCENARIO_DIR / "range-plan.yaml")

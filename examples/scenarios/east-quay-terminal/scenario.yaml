@@ -77,6 +77,7 @@ workflows:
   purpose: Record a carrier request, review its vessel and cargo details, and record clearance status.
   actor_ids: [freight-agent, cargo-clerk, operations-supervisor]
   system_ids: [port-operations]
+  system_interactions: []
   records: [carrier-request, vessel-call, container-reference, clearance-decision]
   outcome: The request and clearance decision are available to terminal operations.
 - id: approved-move-to-yard
@@ -84,6 +85,42 @@ workflows:
   purpose: Reconcile the cleared port request and its warehouse outbound plan before dispatching a yard action.
   actor_ids: [operations-supervisor, warehouse-coordinator, integration-engineer, controls-engineer]
   system_ids: [port-operations, warehouse-execution, yard-dispatch, yard-message-network, yard-control]
+  system_interactions:
+  - id: port-to-yard-dispatch
+    from_system_id: port-operations
+    to_system_id: yard-dispatch
+    kind: service_integration
+    records: [approved-yard-move]
+  - id: yard-dispatch-to-message-network
+    from_system_id: yard-dispatch
+    to_system_id: yard-message-network
+    kind: service_integration
+    records: [yard-command]
+  - id: message-network-to-yard-control
+    from_system_id: yard-message-network
+    to_system_id: yard-control
+    kind: service_integration
+    records: [yard-command]
+  - id: yard-control-to-message-network
+    from_system_id: yard-control
+    to_system_id: yard-message-network
+    kind: service_integration
+    records: [equipment-completion]
+  - id: yard-dispatch-to-port-records
+    from_system_id: yard-dispatch
+    to_system_id: port-operations
+    kind: service_integration
+    records: [clearance-decision, dispatch-audit]
+  - id: yard-control-to-port-records
+    from_system_id: yard-control
+    to_system_id: port-operations
+    kind: service_integration
+    records: [equipment-completion]
+  - id: port-to-warehouse-reference
+    from_system_id: port-operations
+    to_system_id: warehouse-execution
+    kind: human_handoff
+    records: [carrier-shipment-reference]
   records: [approved-yard-move, warehouse-outbound-plan, yard-command, equipment-completion]
   outcome: Terminal staff reconcile the same shipment reference across the port request and warehouse plan before the dispatch bridge submits the yard work order.
 - id: warehouse-outbound-staging
@@ -91,5 +128,11 @@ workflows:
   purpose: Use the carrier shipment reference to create a warehouse outbound plan and record pick readiness.
   actor_ids: [operations-supervisor, warehouse-coordinator]
   system_ids: [port-operations, warehouse-execution]
+  system_interactions:
+  - id: port-to-warehouse-staging-reference
+    from_system_id: port-operations
+    to_system_id: warehouse-execution
+    kind: human_handoff
+    records: [carrier-shipment-reference]
   records: [carrier-shipment-reference, outbound-plan-order, pick-readiness]
   outcome: Warehouse Operations records a pick-ready outbound plan associated with the shipment reference used by Terminal Operations.

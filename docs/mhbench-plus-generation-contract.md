@@ -36,7 +36,7 @@ Human-authored scenario + reviewed service/weakness inputs
 
 | Input | Contract | East Quay file |
 |---|---|---|
-| Business semantics | Departments, actors, business systems, normal workflows and records. No vulnerability claims. | `examples/scenarios/east-quay-terminal/scenario.yaml` |
+| Business semantics | Departments, actors, business systems, normal workflows, records, and explicit system interactions distinguishing service integrations from human handoffs. No vulnerability claims. | `examples/scenarios/east-quay-terminal/scenario.yaml` |
 | Concrete range plan | Explicit entry state, service instances, network attachments, service flows, resource goals, weakness candidates, and any authored candidate-path hypotheses. Candidate presence does **not** select or deploy it. | `examples/scenarios/east-quay-terminal/range-plan.yaml` |
 | Service catalog | Reviewed image pins or build-context/Dockerfile references and service runtime defaults. | `examples/scenarios/east-quay-terminal/service-catalog.yaml` |
 | Weakness catalog | Reviewed deployment templates for explicitly selected weakness instances. Required if `weaknesses` is non-empty. | Not yet populated for East Quay |
@@ -148,6 +148,11 @@ workflow. Before using it in a benchmark-ready chain, either establish and
 test a justified connection to the target resource or defer it from the
 playable range. Do not count its services as attack-chain nodes or add more
 warehouse components simply to host vulnerabilities.
+
+`Workflow.system_interactions` distinguishes a software integration from a
+human handoff. Cross-system `Flow` edges must be backed by a declared
+`service_integration`; co-membership in a broad workflow or a `human_handoff`
+does not authorize an invented technical edge.
 
 ## Readiness snapshot
 
