@@ -159,6 +159,7 @@ class WeaknessInstance(SpecModel):
     id: str
     candidate_id: str
     service_id: str
+    workflow_id: str | None = None
     catalog_ref: str
     rationale: str
 
@@ -819,6 +820,11 @@ class RangePlan(SpecModel):
                     f"{candidate.id} whose triage_status is "
                     f"{candidate.triage_status!r}, not 'selected'"
                 )
+            if self.schema_version == "1.1" and not weakness.workflow_id:
+                raise ValueError(
+                    f"weakness {weakness.id} must name its business workflow "
+                    "in range schema 1.1"
+                )
             if (
                 candidate.source_track
                 not in ("deployed_weakness", "cve_inspired_analog")
@@ -1129,6 +1135,25 @@ class ScenarioBundle(SpecModel):
                 "business systems must participate in at least one workflow: "
                 f"{sorted(unused_systems)}"
             )
+
+        workflows_by_id = {
+            workflow.id: workflow for workflow in self.scenario.workflows
+        }
+        for weakness in self.range.weaknesses:
+            if weakness.workflow_id is None:
+                continue
+            workflow = workflows_by_id.get(weakness.workflow_id)
+            if workflow is None:
+                raise ValueError(
+                    f"weakness {weakness.id} references unknown workflow "
+                    f"{weakness.workflow_id}"
+                )
+            service = service_by_id[weakness.service_id]
+            if not set(service.system_ids) & set(workflow.system_ids):
+                raise ValueError(
+                    f"weakness {weakness.id} service {service.id} is not part "
+                    f"of workflow {workflow.id}"
+                )
 
         for flow in self.range.flows:
             source = service_by_id[flow.from_service]

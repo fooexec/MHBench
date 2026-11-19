@@ -154,6 +154,11 @@ test a justified connection to the target resource or defer it from the
 playable range. Do not count its services as attack-chain nodes or add more
 warehouse components simply to host vulnerabilities.
 
+Each deployed weakness instance names the business `workflow_id` it affects.
+Schema 1.1 verifies that the selected service participates in that workflow,
+completing the vulnerability-to-service/system/workflow mapping rather than
+relying only on free-form rationale.
+
 `Workflow.system_interactions` distinguishes a software integration from a
 human handoff. Cross-system `Flow` edges must be backed by a declared
 `service_integration`, and every declared `service_integration` must have a

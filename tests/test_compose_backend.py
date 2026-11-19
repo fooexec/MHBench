@@ -34,6 +34,59 @@ SMOKE_DIR = ROOT / "examples/compose-smoke"
 
 
 class ScenarioSemanticValidationTest(unittest.TestCase):
+    def _east_quay_with_deployed_weakness(self, service_id, workflow_id):
+        scenario = ScenarioPlan.model_validate(
+            load_yaml(SCENARIO_DIR / "scenario.yaml")
+        )
+        range_data = load_yaml(SCENARIO_DIR / "range-plan.yaml")
+        range_data["weakness_candidates"].append(
+            {
+                "id": "workflow-mapping-fixture",
+                "source_track": "deployed_weakness",
+                "source_ref": "fixture://east-quay/workflow-mapping",
+                "product": "Fixture service",
+                "vulnerable_baseline": "seeded-misconfiguration",
+                "corrected_control_ref": "fixture://corrected-control",
+                "mechanism": "A test-only deployed weakness.",
+                "precondition": "A documented workflow uses the service.",
+                "requires_capabilities": ["fixture:entry"],
+                "grants_capabilities": ["fixture:impact"],
+                "resource_effects": ["integrity:fixture-resource"],
+                "business_fit": "Test only.",
+                "selection_band": "adjacent",
+                "selection_rationale": "Schema regression fixture.",
+                "triage_status": "selected",
+                "artifact_pair_status": "deployment-control-pair",
+                "public_poc_screen": "not_applicable",
+                "case_role": "chain_tissue",
+                "enumeration": {
+                    "status": "acceptable",
+                    "surface": "Test-only service surface",
+                    "authentication_state": "seeded",
+                    "input_fields": ["fixture"],
+                    "minimum_search_space": 1,
+                    "interaction_rounds": 1,
+                    "protocol_construction_required": False,
+                    "rationale": "No enumeration is modeled in this fixture.",
+                },
+                "live_reproduction": "pass",
+            }
+        )
+        range_data["weaknesses"] = [
+            {
+                "id": "workflow-mapping-instance",
+                "candidate_id": "workflow-mapping-fixture",
+                "service_id": service_id,
+                "workflow_id": workflow_id,
+                "catalog_ref": "fixture://weakness",
+                "rationale": "Test-only mapping.",
+            }
+        ]
+        return ScenarioBundle(
+            scenario=scenario,
+            range=RangePlan.model_validate(range_data),
+        )
+
     def _cve_analog_candidate(self):
         return {
             "id": "cve-analog-fixture",
@@ -226,6 +279,37 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
             "workflow carrier-request-review includes actor cargo-clerk",
         ):
             self._east_quay_bundle(scenario)
+
+    def test_deployed_weakness_must_map_to_a_workflow_using_its_service(self):
+        with self.assertRaisesRegex(
+            ValidationError, "must name its business workflow"
+        ):
+            self._east_quay_with_deployed_weakness(
+                "warehouse-frontend",
+                None,
+            )
+
+        valid = self._east_quay_with_deployed_weakness(
+            "warehouse-frontend",
+            "approved-move-to-yard",
+        )
+        self.assertEqual(
+            valid.range.weaknesses[0].workflow_id,
+            "approved-move-to-yard",
+        )
+
+        with self.assertRaisesRegex(ValidationError, "is not part of workflow"):
+            self._east_quay_with_deployed_weakness(
+                "warehouse-frontend",
+                "carrier-request-review",
+            )
+
+    def test_deployed_weakness_rejects_unknown_workflow(self):
+        with self.assertRaisesRegex(ValidationError, "references unknown workflow"):
+            self._east_quay_with_deployed_weakness(
+                "warehouse-frontend",
+                "undeclared-workflow",
+            )
 
     def test_business_system_must_be_grounded_in_a_workflow(self):
         scenario = load_yaml(SCENARIO_DIR / "scenario.yaml")
@@ -643,6 +727,7 @@ class ComposeBackendTest(unittest.TestCase):
                     "id": f"weakness-{index}",
                     "candidate_id": candidate_id,
                     "service_id": "status-page",
+                    "workflow_id": "read-status",
                     "catalog_ref": f"weakness://smoke/{index}",
                     "rationale": "Test fixture.",
                 }
@@ -798,6 +883,7 @@ class ComposeBackendTest(unittest.TestCase):
                                 id="selected-unimplemented",
                                 candidate_id="source-candidate-not-present",
                                 service_id="declaration-portal",
+                                workflow_id="carrier-request-review",
                                 catalog_ref="weakness://missing/template",
                                 rationale="negative test",
                             )
