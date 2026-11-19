@@ -79,6 +79,13 @@ network with no target service attached. Controlled model/API egress, if needed,
 must be implemented as a separately reviewed allowlist/proxy path rather than
 by placing the Agent on an externally routed network.
 
+Harbor task packaging requires at least one approved candidate path; approved
+paths already validate as three or more explicitly deployed weakness nodes,
+with continuous capability transitions and the required difficulty gates.
+`--draft-preview` is an explicit escape hatch for Compose/compiler smoke tests
+while a scenario is still under construction. Its output is labeled
+**NOT benchmark-ready** and must not be treated as a playable benchmark task.
+
 ## Recommendation
 
 Do not make an LLM a runtime dependency of the environment generator, and do

@@ -805,11 +805,13 @@ class ComposeBackendTest(unittest.TestCase):
                     str(SCENARIO_DIR),
                     "--task-assets",
                     str(SCENARIO_DIR / "harbor-assets"),
+                    "--draft-preview",
                     "--output",
                     str(output),
                 ],
             )
             self.assertEqual(result.exit_code, 0, result.output)
+            self.assertIn("NOT benchmark-ready", result.output)
             self.assertTrue((output / "environment/Dockerfile").is_file())
             self.assertTrue((output / "environment/docker-compose.yaml").is_file())
             self.assertTrue((output / "tests/Dockerfile").is_file())
@@ -852,12 +854,41 @@ class ComposeBackendTest(unittest.TestCase):
                     str(SCENARIO_DIR),
                     "--task-assets",
                     str(assets),
+                    "--draft-preview",
                     "--output",
                     str(Path(temp) / "task"),
                 ],
             )
             self.assertNotEqual(result.exit_code, 0)
             self.assertIn('network_mode = "public" is prohibited', result.output)
+
+    def test_harbor_task_compiler_requires_approved_three_node_path(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "task"
+            result = CliRunner().invoke(
+                render_harbor_task,
+                [
+                    "--scenario",
+                    str(SCENARIO_DIR / "scenario.yaml"),
+                    "--range-plan",
+                    str(SCENARIO_DIR / "range-plan.yaml"),
+                    "--catalog",
+                    str(SCENARIO_DIR / "service-catalog.yaml"),
+                    "--catalog-root",
+                    str(SCENARIO_DIR),
+                    "--task-assets",
+                    str(SCENARIO_DIR / "harbor-assets"),
+                    "--output",
+                    str(output),
+                ],
+            )
+            self.assertNotEqual(result.exit_code, 0)
+            self.assertIn(
+                "without an approved candidate path containing at least "
+                "three deployed weakness nodes",
+                result.output,
+            )
+            self.assertFalse(output.exists())
 
     def test_harbor_task_compiler_deploys_explicit_weakness_catalog(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -95,6 +95,17 @@ def _contains_public_network_mode(value) -> bool:
     return False
 
 
+def _require_benchmark_ready(range_plan) -> None:
+    """Prevent an incomplete scenario preview from being packaged as a task."""
+    if any(path.status == "approved" for path in range_plan.candidate_paths):
+        return
+    raise ValueError(
+        "cannot package a benchmark-ready Harbor task without an approved "
+        "candidate path containing at least three deployed weakness nodes; "
+        "use --draft-preview only for environment/compiler smoke tests"
+    )
+
+
 @click.command()
 @click.option(
     "--scenario",
@@ -136,6 +147,14 @@ def _contains_public_network_mode(value) -> bool:
     required=True,
     type=click.Path(file_okay=False, path_type=Path),
 )
+@click.option(
+    "--draft-preview",
+    is_flag=True,
+    help=(
+        "Allow packaging an incomplete scenario for environment/compiler "
+        "smoke tests; this is not a benchmark-ready task."
+    ),
+)
 def main(
     scenario_file: Path,
     range_file: Path,
@@ -144,10 +163,13 @@ def main(
     weakness_catalog_file: Path | None,
     task_assets: Path,
     output_dir: Path,
+    draft_preview: bool,
 ) -> None:
     """Write an environment plus Harbor task metadata and authored grader assets."""
     try:
         bundle = load_bundle(scenario_file, range_file)
+        if not draft_preview:
+            _require_benchmark_ready(bundle.range)
         catalog = ServiceCatalog.model_validate(load_yaml(catalog_file))
         weakness_catalog = (
             WeaknessCatalog.model_validate(load_yaml(weakness_catalog_file))
@@ -167,7 +189,13 @@ def main(
         (output_dir / "instruction.md").write_text(_entry_instruction(bundle))
     except (OSError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc
-    click.echo(f"Rendered Harbor task: {output_dir}")
+    if draft_preview:
+        click.echo(
+            "Rendered Harbor task draft preview (NOT benchmark-ready): "
+            f"{output_dir}"
+        )
+    else:
+        click.echo(f"Rendered benchmark-ready Harbor task: {output_dir}")
 
 
 if __name__ == "__main__":
