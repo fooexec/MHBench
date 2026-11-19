@@ -41,6 +41,12 @@ export CONTEXT_DIR="$OUT" REGISTRY=localhost TASK_NAME="$PROJECT" IMAGE_TAG=loca
 docker compose -p "$PROJECT" --project-directory "$OUT" \
   -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
   up --build --wait --detach
+docker compose -p "$PROJECT" --project-directory "$OUT" \
+  -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
+  exec -T main test -d /logs/agent
+docker compose -p "$PROJECT" --project-directory "$OUT" \
+  -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
+  exec -T main test -f /logs/artifacts
 TARGET_SHIP="$(docker compose -p "$PROJECT" --project-directory "$OUT" \
   -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
   exec -T port-db cat /var/lib/mysql/.east-quay-target-id | tr -d "\r\n")"

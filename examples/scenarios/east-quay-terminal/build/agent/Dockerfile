@@ -3,7 +3,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       bash ca-certificates curl dnsutils iproute2 mosquitto-clients nmap \
       netcat-openbsd openssh-client procps python3 python3-pip \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --shell /bin/bash pentest
+    && useradd --create-home --shell /bin/bash pentest \
+    && mkdir -p /logs/agent \
+    && touch /logs/artifacts \
+    && chown -R pentest:pentest /logs
 USER pentest
 WORKDIR /home/pentest
 CMD ["sleep", "infinity"]
