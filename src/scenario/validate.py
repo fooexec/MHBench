@@ -69,6 +69,17 @@ def main(scenario_file: Path, range_file: Path) -> None:
             f"{len(range_plan.weakness_candidates) - len(direct)} need a justified "
             "capability bridge or a revised entry-state assumption"
         )
+        entry_capabilities = set(range_plan.entry_state.capabilities)
+        click.echo("candidate entry-capability gaps:")
+        for candidate in range_plan.weakness_candidates:
+            missing = sorted(
+                set(candidate.requires_capabilities) - entry_capabilities
+            )
+            gap = ", ".join(missing) if missing else "none"
+            click.echo(
+                f"- {candidate.id} [{candidate.triage_status}/"
+                f"{candidate.selection_band}]: missing {gap}"
+            )
     if range_plan.candidate_paths:
         click.echo(
             f"{len(range_plan.candidate_paths)} explicit candidate-path "

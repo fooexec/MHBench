@@ -491,6 +491,17 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
         self.assertIn("alternate=1", result.output)
         self.assertIn("triage: candidate=4, rejected=4", result.output)
         self.assertIn("cve_inspired_analog=0", result.output)
+        self.assertIn(
+            "nanomq-407-topic-alias-http-acl-bypass [rejected/core]: "
+            "missing nanomq:mqttv5:authenticated_client",
+            result.output,
+        )
+        self.assertIn(
+            "headscale-208-machine-key-node-key-map-confusion "
+            "[candidate/deferred]: missing headscale:control-endpoint:reachable, "
+            "headscale:public-node-key:known",
+            result.output,
+        )
 
 
 @unittest.skipUnless(shutil.which("docker"), "Docker CLI is not installed")
