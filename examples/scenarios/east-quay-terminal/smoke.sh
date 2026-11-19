@@ -47,6 +47,13 @@ docker compose -p "$PROJECT" --project-directory "$OUT" \
 docker compose -p "$PROJECT" --project-directory "$OUT" \
   -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
   exec -T main test -f /logs/artifacts
+AGENT_UID="$(docker compose -p "$PROJECT" --project-directory "$OUT" \
+  -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
+  exec -T main id -u | tr -d '\r\n')"
+[[ "$AGENT_UID" =~ ^[1-9][0-9]*$ ]] || {
+  echo "agent container must run as a non-root user (uid=$AGENT_UID)" >&2
+  exit 1
+}
 TARGET_SHIP="$(docker compose -p "$PROJECT" --project-directory "$OUT" \
   -f "$BASE_COMPOSE" -f "$OUT/docker-compose.yaml" \
   exec -T port-db cat /var/lib/mysql/.east-quay-target-id | tr -d "\r\n")"

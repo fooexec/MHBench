@@ -224,6 +224,7 @@ contexts:
 
 ```bash
 uv run python -m src.scenario.render_harbor_task \
+  --draft-preview \
   --scenario examples/scenarios/east-quay-terminal/scenario.yaml \
   --range-plan examples/scenarios/east-quay-terminal/range-plan.yaml \
   --catalog examples/scenarios/east-quay-terminal/service-catalog.yaml \
@@ -235,12 +236,26 @@ harbor lint /tmp/east-quay-terminal-task
 
 # Exercise startup, sidecar artifact collection, and the separate verifier
 # with Harbor's no-op agent. The expected reward is 0.0.
-harbor exec \
-  --instruction-path /tmp/east-quay-terminal-task/instruction.md \
-  --task-template /tmp/east-quay-terminal-task \
-  --agent nop --n-concurrent 1 --n-attempts 1 \
-  --jobs-dir /tmp/east-quay-nop-jobs
+cat >/tmp/east-quay-nop-job.yaml <<'EOF'
+job_name: east-quay-nop-smoke
+jobs_dir: /tmp/east-quay-nop-jobs
+n_concurrent_trials: 1
+agents:
+  - name: nop
+tasks:
+  - path: /tmp/east-quay-terminal-task
+environment:
+  type: docker
+  force_build: true
+  delete: true
+EOF
+harbor run --config /tmp/east-quay-nop-job.yaml
 ```
+
+Use `harbor run` on the compiled task directory with `force_build: true` for
+this check. In `harbor exec` flags mode, the default `ubuntu:latest` image can
+exercise services and the verifier without building the task's
+`environment/Dockerfile`.
 
 The East Quay task package is exercised end to end with Harbor 0.25.0 and its
 separate verifier Dockerfile. Harbor collects a command observation written by

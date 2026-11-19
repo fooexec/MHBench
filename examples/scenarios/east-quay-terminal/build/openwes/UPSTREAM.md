@@ -35,6 +35,9 @@ The warehouse subsystem is included as an unscored service graph component;
 the business workflow links it to Port Operations through the shared shipment
 reference and a human reconciliation step. The existing yard bridge does not
 read warehouse order state. Before assigning any reward to WES state, implement
-and test that cross-system resource linkage. Full Compose smoke and Harbor 0.25.0
-`nop` startup/negative-scoring trial passed, but a positive exploit trial,
-reset test, and final resource-budget calibration are still required.
+and test that cross-system resource linkage. Full Compose smoke and a Harbor
+0.25.0 `nop` startup/negative-scoring trial passed. The Harbor trial used
+`environment.force_build: true`, exercising the generated unprivileged agent
+Dockerfile; broker and DB sidecar artifacts were collected and reward was 0.0
+as expected. A positive exploit trial, reset test, and final resource-budget
+calibration are still required.
