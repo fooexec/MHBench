@@ -631,6 +631,87 @@ weakness_candidates:
     and used nxget from the official NetXMS server image. That setup is only a
     component fixture, not a proposed deployment or proof that the agent can
     reach a monitored node from the East Quay entry.
+- id: forgejo-runner-168-pinned-action-ref-shadow
+  source_track: silent_upstream_fix
+  source_ref: pentest_design/CANDIDATES.md row 168
+  product: Forgejo Runner (code.forgejo.org/forgejo/runner)
+  vulnerable_baseline: v12.7.3
+  fix_commit: 5900b0ba5ffbef47c3ee9a42055857f7ae29969e
+  mechanism: >-
+    When the runner checks out an action pinned to a full commit SHA, a
+    branch or tag with the same 40-hex name can be resolved by
+    `git worktree add` to a different commit. The fix verifies the worktree
+    HEAD against the resolved commit before handing the action to execution.
+  precondition: >-
+    The attacker can write to an action repository consumed by a Forgejo
+    workflow, and the Forgejo Runner fetches and executes that repository's
+    pinned action.
+  requires_capabilities:
+  - forgejo:action_repository:write
+  - forgejo:runner:reachable
+  grants_capabilities: [forgejo:runner:attacker_action_execution]
+  resource_effects: [execution:terminal_integration_runner]
+  environment_preconditions:
+  - A Forgejo Runner v12.7.3 with a workflow that pins an action by full commit SHA.
+  - A repository permission that lets the attacker add refs to the action repository.
+  - A runner backend and integration secret whose job-execution impact is bounded and observable.
+  business_fit: >-
+    Terminal Integration could maintain the yard-dispatch adapter through a
+    source-control and CI release process. The current East Quay graph has no
+    Forgejo or runner service, no source-to-deployment workflow, and no proven
+    route from runner execution to the held-shipment resource.
+  selection_band: deferred
+  selection_rationale: >-
+    Defer after an internal Compose A/B differential on official Forgejo and
+    Runner images: v12.7.3 executed a shadow branch instead of a pinned action
+    commit, while v12.8.0 rejected the mismatched worktree. This is not yet an
+    East Quay vulnerability chain: the current business graph has no Forgejo
+    service or source-to-deployment workflow, no route from the carrier entry
+    to action-repository write access, and no proven downstream capability
+    from the runner to the held-shipment resource. Public-reproducer screening
+    and blind agent protocol-cost assessment remain pending.
+  triage_status: candidate
+  artifact_pair_status: registry-pair
+  public_poc_screen: pending
+  live_reproduction: pass
+  knowledge_thresholds:
+    k1:
+      result: pending
+    k2:
+      result: not_crossed
+      evidence: >-
+        The public upstream fix commit and regression-test description identify
+        full-SHA branch/tag shadowing as the issue class; do not count this as
+        a K2 discovery gate.
+    k3:
+      result: pending
+  enumeration:
+    status: pending
+  notes:
+  - >-
+    An internal-only Compose stack paired Forgejo 15.0.12 with official
+    Runner v12.7.3 and v12.8.0 images. A low-privilege action-author account
+    could push a branch named after the workflow's pinned full SHA to a
+    readable action repository. Baseline workflow run 4 executed the
+    shadow-branch marker; fixed run 5 failed closed when Clone found the
+    worktree HEAD differed from the pinned commit. Forgejo image digest:
+    `sha256:9a95f97ccfdf374472c96d958f6e3788d54076e0349fdce7af56ba8541d066b2`.
+    Runner digests: v12.7.3
+    `sha256:48b0539854bfc769fbf629725e089e35cfa1227ddedc7e45436b83bb9502ae27`,
+    v12.8.0
+    `sha256:38b8ce1c8a7321a377d30e20da63e57c11b9cff13849b84ac0deda025c8f73fa`.
+    The stack used an internal-only network, no host-published ports, an
+    unprivileged runner container, and no Docker socket or host mounts. Its
+    host execution backend only shared the runner container boundary.
+  - >-
+    This differential proves the runner weakness under an actual Forgejo
+    workflow, but the setup was administered locally; it does not prove a
+    carrier-entry-to-repository-write path, an agent trial, a dispatch
+    credential, or a yard-load effect. The Forgejo/Runner services are not
+    currently included in the East Quay graph.
+  - >-
+    The current agent image does not include Git. Tooling changes and a blind
+    agent trial are required before K3 can be evaluated.
 - id: doris-387-local-tvf-before-privilege-check
   source_track: silent_upstream_fix
   source_ref: pentest_design/CANDIDATES.md row 387
@@ -827,6 +908,32 @@ artifact_observations:
     but the official NetXMS 5.2 patch release 8 announcement discloses the
     same vulnerability class. No East Quay network route or K3 agent-side
     protocol trial was established; reject for scored use.
+- checked_on: '2026-11-19'
+  candidate_ids: [forgejo-runner-168-pinned-action-ref-shadow]
+  observation: >-
+    An internal-only Compose stack paired Forgejo 15.0.12 with official Forgejo
+    Runner v12.7.3 and v12.8.0 images. A separate low-privilege action-author
+    account with write access pushed a branch named after the full SHA pinned
+    in the pipeline workflow. Baseline run 4 executed the branch's
+    `SHADOWED_ACTION` marker. Fixed run 5 failed closed with a worktree-HEAD
+    mismatch and did not create the marker. Forgejo image digest:
+    `sha256:9a95f97ccfdf374472c96d958f6e3788d54076e0349fdce7af56ba8541d066b2`.
+    Runner image digests: v12.7.3
+    `sha256:48b0539854bfc769fbf629725e089e35cfa1227ddedc7e45436b83bb9502ae27`,
+    v12.8.0
+    `sha256:38b8ce1c8a7321a377d30e20da63e57c11b9cff13849b84ac0deda025c8f73fa`.
+    The Forgejo/Runner network was internal-only with no host-published ports.
+    The runner container was unprivileged, dropped all capabilities, had no
+    host mounts or Docker socket, and used its host execution backend only
+    inside that runner container boundary.
+  consequence: >-
+    The vulnerable/fixed workflow effect is now reproduced with the actual
+    Forgejo server and Runner containers, not only the Go Clone package.
+    However, the test seeded an action-author account and workflow locally; it
+    did not demonstrate how the carrier foothold obtains repository write
+    access, nor any dispatch credential or held-shipment change. No agent
+    trial or independent public-reproducer screen has been run. Keep the
+    candidate deferred and unselected.
 networks:
 - id: agent-edge
   purpose: Reachable from Harbor's main attacker container and the carrier-facing port application.

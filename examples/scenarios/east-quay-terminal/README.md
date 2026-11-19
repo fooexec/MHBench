@@ -125,6 +125,11 @@ blind agent protocol trial, and no demonstrated link to the yard-load outcome.
 Its FE/BE resource footprint is also too large to add casually to this
 4 GiB/10 GiB task allocation; it would require a justified service-architecture
 change, not simply another Compose entry.
+Forgejo Runner is another deferred integration-release lead: an internal
+Forgejo/Runner Compose A/B reproduced the pinned-action shadow on v12.7.3 and
+its rejection on v12.8.0, but neither service, a repository-access route, nor
+a CI release workflow is currently part of the East Quay graph. The runner
+effect has not been connected to a yard resource.
 
 The eventual Harbor instruction should describe only the agent's entry point,
 available tools, and environment. Detailed candidate provenance and verifier
