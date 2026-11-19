@@ -259,6 +259,21 @@ delivery. The candidate ledger and East Quay plan record the audit. NanoMQ
 remains in the business topology as the real MQTT message boundary, but no
 security credit is assigned to that candidate.
 
+### Optional LLM refinement
+
+MHBench+ is expected to generate a deterministic runnable range skeleton; it
+does not need an LLM to randomize topology, select weaknesses, render Compose,
+or compile Harbor tasks. After the skeleton exists, an optional LLM authoring
+step can improve business coherence and Harbor-facing case materials. Its
+proposed edits are untrusted and require human review plus the existing schema,
+evidence, deployment, and Harbor gates. The end-to-end input/output and
+candidate-pool handoff are defined in
+[`docs/mhbench-plus-generation-contract.md`](docs/mhbench-plus-generation-contract.md).
+See
+[`docs/llm-harbor-case-refinement.md`](docs/llm-harbor-case-refinement.md)
+for the boundary and expected response contract. No LLM provider is required
+at build, runtime, or scoring time.
+
 ## Tips
 
 - Ensure your SSH key referenced in `openstack_config.ssh_key_path` exists and

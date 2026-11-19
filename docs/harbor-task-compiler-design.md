@@ -109,7 +109,8 @@ If the long-term goal is one project that supports both VM cyber ranges and
 Harbor tasks, share a backend-neutral scenario specification and keep
 OpenStack/GCP and Docker/Harbor as independent deployment backends.
 
-The generator must model two distinct things:
+The end-to-end authoring and compilation pipeline must keep two distinct
+things traceable:
 
 1. **Scenario semantics:** why the organization, departments, systems, data,
    and workflows exist, and how they depend on one another in normal operation.
@@ -118,8 +119,10 @@ The generator must model two distinct things:
 
 Network reachability or an attack path alone does not establish that a range
 is a coherent business system. Conversely, business prose alone does not
-produce a runnable range. The compiler must preserve the traceable mapping
-between the two.
+produce a runnable range. MHBench+ may provide the technical/business
+relationship skeleton; the optional human- or LLM-assisted refinement can
+improve the case semantics, and deterministic validation must preserve the
+traceable mapping between the two.
 
 The current `bsinger98/MHBench` checkout is VM/OpenStack-oriented:
 
@@ -158,50 +161,56 @@ graph from network links, randomly attach a weakness to make a path work, or
 require the tested agent to follow the graph. Actual runtime evidence and
 resource goals remain the scoring oracle.
 
-## LLM: optional authoring aid, not part of compilation
+## LLM: optional refinement aid, not part of generation or compilation
 
-There are two different questions: “Can the system generate a scenario?” and
-“Must the environment compiler call an LLM?” The system can support
-LLM-assisted generation of a complete **draft** scenario, but the compiler
-should be deterministic and work without an LLM. Scenario semantics involve
-creative choices (organization, actors, workflows, business records, and
-system responsibilities), so an LLM can help draft those and propose mappings
-to available services. This is an authoring interface, not a trusted source of
-facts or a required runtime dependency. A human can also write the same
-specification directly.
+MHBench+ should generate a useful deterministic **range skeleton** from
+approved scenario and range inputs, without an LLM. That skeleton can then be
+passed to an optional LLM authoring step to improve business coherence and
+Harbor case presentation. The LLM does not belong inside the topology
+randomizer, vulnerability assignment, or deterministic compiler, and is not
+required to build, deploy, reset, or score a task. The same authoring step can
+be done by a human.
 
-LLM output is an untrusted proposal:
+The post-generation LLM output is an untrusted proposal:
 
-1. Products and versions must resolve to an approved service catalog entry.
+1. It may revise scenario semantics and propose mappings, but concrete
+   products and versions must resolve to the approved service catalog.
 2. Vulnerability references must resolve to sourced and validated weakness
-  records; the LLM must not invent CVEs, PoCs, or vulnerability claims.
-3. The generated specification must pass schema, compatibility, provenance,
-  workflow-consistency, and business-naturalness checks.
+   records; the LLM must not invent CVEs, PoCs, fixes, or evidence.
+3. Its edits must pass schema, compatibility, provenance,
+   workflow-consistency, and business-coherence review.
 4. Unsupported service needs must be surfaced as gaps, not silently filled by
-  invented “realistic” products or large amounts of bespoke glue.
+   invented “realistic” products or large amounts of bespoke glue.
 5. A human approves the scenario/service/weakness mapping before packaging.
 
-The deterministic compiler then renders Dockerfiles, environment orchestration,
-Harbor metadata, and verifier skeletons from the approved specification.
-LLM-based attackers belong in the later evaluation harness, not in environment
+After approval, the deterministic compiler renders the environment and Harbor
+package from the reviewed inputs and authored assets. A checklist and response
+contract for this optional step is in
+[`llm-harbor-case-refinement.md`](llm-harbor-case-refinement.md). LLM-based
+attackers belong in the later evaluation harness, not in environment
 compilation.
 
 ## Where scenario generation belongs
 
 Do not put business-story generation inside MHBench's topology randomizer or
-attack-path generator. Add a separate **Scenario Authoring** layer that emits
-the backend-neutral semantic specification above. Then compile that approved
+attack-path generator. Keep range generation deterministic and able to produce
+a runnable skeleton. An optional post-generation case-refinement step can use
+an LLM to improve business semantics and Harbor task assets, with human review
+before deterministic validation and compilation. Compile the approved
 specification through independent backend adapters:
 
 ```text
-Human brief or optional LLM-assisted authoring
+Human brief + deterministic MHBench range skeleton
                   |
                   v
-ScenarioPlan + workflow/system semantics
+Optional LLM-assisted Harbor case refinement
                   |
-      catalog resolution + review
+        human review / approval
                   |
                   v
+      schema + evidence + catalog validation
+                   |
+                   v
       validated CyberRangeSpec
              /           \
             v             v
