@@ -57,12 +57,13 @@ enumeration-shaped weakness count as the primary case.
 
 A first Compose adapter is available at `src/scenario/compose_backend.py`.
 It resolves service `catalog_ref`s against a reviewed service catalog,
-renders Compose and copies declared build contexts. The first weakness adapter
-supports explicit file overlays on build-backed services. Each selected
-weakness must resolve through a separate catalog entry whose candidate and
-service compatibility are checked; duplicate target paths and missing overlay
-files fail closed. This is an adapter primitive, not yet a populated library
-of validated East Quay vulnerabilities. The smoke fixture lives in
+renders Compose and copies declared build contexts. Weakness deployment
+supports explicit file overlays on build-backed services and digest-verified
+image pins for prebuilt services. Each selected weakness must resolve through a
+separate catalog entry whose candidate and service compatibility are checked;
+duplicate target paths, missing overlay files, and image-digest mismatches fail
+closed. This is an adapter primitive, not yet a populated library of validated
+East Quay vulnerabilities. The smoke fixture lives in
 `examples/compose-smoke/`. The renderer plus Harbor task compiler has been
 exercised with Docker Compose and Harbor 0.25.0. This proves local integration
 only, not yet stock-Harbor portability across other Harbor versions.

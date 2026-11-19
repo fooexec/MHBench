@@ -1,9 +1,10 @@
 """Render a validated scenario/range pair as a portable Compose environment.
 
 Service templates and explicitly selected weaknesses resolve through separate
-reviewed catalogs. The initial weakness adapter supports deterministic file
-overlays on build-backed services; unsupported or unresolved weaknesses fail
-closed rather than being silently omitted.
+reviewed catalogs. Weakness deployment supports deterministic file overlays on
+build-backed services and digest-verified image pins on prebuilt services;
+unsupported or unresolved weaknesses fail closed rather than being silently
+omitted.
 """
 
 from __future__ import annotations
@@ -93,21 +94,47 @@ class FileOverlay(BaseModel):
 
 
 class WeaknessTemplate(BaseModel):
-    """Deterministic file-overlay adapter for one reviewed weakness candidate."""
+    """Deterministic deployment adapter for one reviewed weakness candidate."""
 
     model_config = ConfigDict(extra="forbid")
 
     catalog_ref: str
     candidate_ids: list[str] = Field(min_length=1)
     service_catalog_ref: str
-    file_overlays: list[FileOverlay] = Field(min_length=1)
+    deployment: Literal["file_overlay", "pinned_image"] = "file_overlay"
+    file_overlays: list[FileOverlay] = Field(default_factory=list)
+    image_digest: str | None = None
 
     @model_validator(mode="after")
-    def validate_overlay_paths(self) -> "WeaknessTemplate":
+    def validate_deployment(self) -> "WeaknessTemplate":
         if len(self.candidate_ids) != len(set(self.candidate_ids)):
             raise ValueError(
                 f"weakness template {self.catalog_ref} repeats candidate IDs"
             )
+        if self.deployment == "file_overlay":
+            if not self.file_overlays:
+                raise ValueError(
+                    f"weakness template {self.catalog_ref} file_overlay "
+                    "deployment requires at least one overlay"
+                )
+            if self.image_digest is not None:
+                raise ValueError(
+                    f"weakness template {self.catalog_ref} file_overlay "
+                    "deployment cannot declare image_digest"
+                )
+        else:
+            if self.file_overlays:
+                raise ValueError(
+                    f"weakness template {self.catalog_ref} pinned_image "
+                    "deployment cannot declare file_overlays"
+                )
+            if not self.image_digest or not re.fullmatch(
+                r"sha256:[0-9a-f]{64}", self.image_digest
+            ):
+                raise ValueError(
+                    f"weakness template {self.catalog_ref} pinned_image "
+                    "deployment requires a lowercase sha256 image_digest"
+                )
         for overlay in self.file_overlays:
             source = PurePosixPath(overlay.source)
             target = PurePosixPath(overlay.target)
@@ -302,21 +329,39 @@ def render_compose(
                 f"service {service_instance.id} has unresolved catalog_ref "
                 f"{service_instance.catalog_ref!r}"
             )
-        if service_template.delivery != "build":
-            raise ValueError(
-                f"weakness template {weakness_template.catalog_ref} requires "
-                "a build-backed service; image-only overlay deployment is "
-                "not supported"
-            )
-        targets = overlay_targets.setdefault(weakness.service_id, set())
-        for overlay in weakness_template.file_overlays:
-            if overlay.target in targets:
+        if weakness_template.deployment == "file_overlay":
+            if service_template.delivery != "build":
                 raise ValueError(
-                    f"multiple selected weaknesses replace "
-                    f"{weakness.service_id}:{overlay.target}; define an "
-                    "explicit compatible composition instead"
+                    f"weakness template {weakness_template.catalog_ref} "
+                    "file_overlay deployment requires a build-backed service"
                 )
-            targets.add(overlay.target)
+            targets = overlay_targets.setdefault(weakness.service_id, set())
+            for overlay in weakness_template.file_overlays:
+                if overlay.target in targets:
+                    raise ValueError(
+                        f"multiple selected weaknesses replace "
+                        f"{weakness.service_id}:{overlay.target}; define an "
+                        "explicit compatible composition instead"
+                    )
+                targets.add(overlay.target)
+        else:
+            if service_template.delivery != "image":
+                raise ValueError(
+                    f"weakness template {weakness_template.catalog_ref} "
+                    "pinned_image deployment requires an image-backed service"
+                )
+            declared_digest = (
+                service_template.image.rsplit("@", 1)[-1]
+                if service_template.image and "@" in service_template.image
+                else None
+            )
+            if declared_digest != weakness_template.image_digest:
+                raise ValueError(
+                    f"weakness template {weakness_template.catalog_ref} "
+                    f"expects image digest {weakness_template.image_digest}, "
+                    f"but service template {service_template.catalog_ref} "
+                    f"declares {declared_digest or 'no digest'}"
+                )
         selected_by_service.setdefault(weakness.service_id, []).append(
             (weakness_template, weakness.id)
         )
@@ -353,9 +398,16 @@ def render_compose(
             if template.build_target:
                 service["build"]["target"] = template.build_target
             selected = selected_by_service.get(instance.id, [])
-            if selected:
+            if selected and any(
+                template.deployment == "file_overlay"
+                for template, _ in selected
+            ):
                 service["build"]["dockerfile"] = _install_weakness_overlays(
-                    selected,
+                    [
+                        (template, weakness_id)
+                        for template, weakness_id in selected
+                        if template.deployment == "file_overlay"
+                    ],
                     catalog_root,
                     output_dir / "build" / instance.id,
                     template.dockerfile,

@@ -605,6 +605,67 @@ class ComposeBackendTest(unittest.TestCase):
                 text=True,
             )
 
+    def test_pinned_image_weakness_renders_only_the_reviewed_image_digest(self):
+        raw_bundle = load_bundle(
+            SMOKE_DIR / "scenario.yaml",
+            SMOKE_DIR / "range-plan.yaml",
+        )
+        plan = RangePlan.model_validate(self._three_node_plan())
+        bundle = raw_bundle.model_copy(update={"range": plan})
+        digest = "sha256:" + "a" * 64
+        image = f"registry.example.test/port/dispatch:4.1.4@{digest}"
+        catalog_raw = load_yaml(SMOKE_DIR / "service-catalog.yaml")
+        catalog_raw["services"][1] = {
+            "catalog_ref": "service://smoke/http",
+            "delivery": "image",
+            "image": image,
+            "default_expose": [80],
+        }
+        catalog = ServiceCatalog.model_validate(catalog_raw)
+
+        def make_weakness_catalog(image_digest):
+            return WeaknessCatalog(
+                schema_version="1.0",
+                weaknesses=[
+                    WeaknessTemplate(
+                        catalog_ref=f"weakness://smoke/{index}",
+                        candidate_ids=[f"candidate-{index}"],
+                        service_catalog_ref="service://smoke/http",
+                        deployment="pinned_image",
+                        image_digest=image_digest,
+                    )
+                    for index in (1, 2, 3)
+                ],
+            )
+
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "environment"
+            compose_file = render_compose(
+                bundle,
+                catalog,
+                catalog_root=SMOKE_DIR,
+                output_dir=output,
+                weakness_catalog=make_weakness_catalog(digest),
+            )
+            service = yaml.safe_load(compose_file.read_text())["services"][
+                "status-page"
+            ]
+            self.assertEqual(service["image"], image)
+            self.assertNotIn("build", service)
+            self.assertFalse((output / "build/status-page").exists())
+
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaisesRegex(ValueError, "expects image digest"):
+                render_compose(
+                    bundle,
+                    catalog,
+                    catalog_root=SMOKE_DIR,
+                    output_dir=Path(temp) / "environment",
+                    weakness_catalog=make_weakness_catalog(
+                        "sha256:" + "b" * 64
+                    ),
+                )
+
     def test_image_service_template_rejects_build_target(self):
         with self.assertRaisesRegex(
             ValidationError, "forbids context/build_target"
