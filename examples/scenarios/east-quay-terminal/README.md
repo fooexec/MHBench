@@ -123,16 +123,18 @@ and resource goals are tracked in `range-plan.yaml`. A candidate is not part of
 the playable task unless it is explicitly selected, implemented, and validated
 there. In particular, Warehouse Execution is included as a real subsystem, not
 as an assertion that its publicly disclosed issues are eligible scoring nodes.
-The candidate pool snapshot `pentest_design/CANDIDATES.md@66ced03` adds NanoMQ
-rows #445 and #447–#449 as unselected leads on the existing broker. They remain
-conditional: #445, #448, and #449 need runtime A/B validation; #447 must first
-prove a write-side ACL bypass rather than the upstream false-rejection behavior.
-The current broker is still 0.25.6 with `no_match=deny`, so the #448
-`no_match=allow` precondition and #449 multi-listener `mount_point` topology
-are not present. The low-privilege HTTP carrier entry also does not currently
-provide MQTT credentials or a yard ClientID for #445. Odoo #446 remains
-unselected and outside the service graph; it requires a separate internal
-inventory identity and does not close the carrier-entry gap.
+The candidate pool snapshot
+`pentest_design/CANDIDATES.md@d346d86fd1c43dc840febcf3cddec6a52ac9a7c9`
+contains NanoMQ rows #445 and #447–#449 as unselected leads on the existing
+broker, plus reserve-grade EMQX row #450. These remain conditional: #445,
+#448, and #449 need runtime A/B validation; #447 must prove a write-side ACL
+bypass rather than false rejection. The current broker is 0.25.6 with
+`no_match=deny`, so #448's `no_match=allow` precondition and #449's
+multi-listener `mount_point` topology are not present. The low-privilege HTTP
+carrier entry also lacks MQTT credentials and a yard ClientID for #445.
+EMQX #450 would add a heavy broker/dashboard outside the current graph and
+requires explicit operator sign-off; it is tracked as deferred, not added as
+a service. Odoo #446 remains unselected and outside the graph.
 Apache Doris remains an unselected analytics-warehouse lead: its local-file
 read behavior has only one-sided component evidence, no fixed runtime pair or
 blind agent protocol trial, and no demonstrated link to the yard-load outcome.

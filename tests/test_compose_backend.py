@@ -487,9 +487,9 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("core=1", result.output)
         self.assertIn("adjacent=5", result.output)
-        self.assertIn("deferred=5", result.output)
+        self.assertIn("deferred=6", result.output)
         self.assertIn("alternate=1", result.output)
-        self.assertIn("triage: candidate=8, rejected=4", result.output)
+        self.assertIn("triage: candidate=9, rejected=4", result.output)
         self.assertIn("cve_inspired_analog=0", result.output)
         self.assertIn(
             "nanomq-407-topic-alias-http-acl-bypass [rejected/core]: "
@@ -512,6 +512,11 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
             "nanomq-449-mount-point-tenant-isolation [candidate/deferred]: "
             "missing nanomq:mqtt:authenticated_client, "
             "nanomq:mqtt:tenant_listener_reachable",
+            result.output,
+        )
+        self.assertIn(
+            "emqx-450-dashboard-plugin-config-read [candidate/deferred]: "
+            "missing emqx:dashboard:authenticated_viewer",
             result.output,
         )
         self.assertIn(

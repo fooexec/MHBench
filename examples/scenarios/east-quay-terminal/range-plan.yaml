@@ -411,6 +411,49 @@ weakness_candidates:
   public_poc_screen: pending
   case_role: chain_tissue
   live_reproduction: pending
+- id: emqx-450-dashboard-plugin-config-read
+  source_track: silent_upstream_fix
+  source_ref: pentest_design/CANDIDATES.md@d346d86fd1c43dc840febcf3cddec6a52ac9a7c9 row 450
+  product: EMQX (emqx/emqx)
+  vulnerable_baseline: 6.3.2
+  fix_commit: 60496edc
+  mechanism: >-
+    Dashboard RBAC does not scope GET requests for plugin configuration to
+    the caller's namespace or administrator role, exposing global plugin
+    settings to a namespaced principal or non-administrator viewer.
+  precondition: >-
+    The attacker has an authenticated EMQX dashboard viewer or namespaced
+    principal account and can reach the dashboard API.
+  requires_capabilities:
+  - emqx:dashboard:authenticated_viewer
+  grants_capabilities:
+  - emqx:dashboard:read_global_plugin_configuration
+  resource_effects:
+  - confidentiality:global-plugin-configuration
+  environment_preconditions:
+  - EMQX dashboard RBAC is deployed and a low-privilege viewer principal exists.
+  - Plugin configuration contains a seeded East Quay integration credential or other protected business resource.
+  business_fit: >-
+    Plugin configuration could expose an integration credential, but the
+    current East Quay message broker is NanoMQ and has no EMQX dashboard.
+  selection_band: deferred
+  selection_rationale: >-
+    Reserve-grade candidate from the latest pool snapshot. It requires a new,
+    heavy EMQX broker/dashboard service and an operator-approved business
+    relationship; do not add EMQX to the service graph merely to host this
+    candidate. The released 6.3.2/6.3.3 A/B path is available, but the
+    resource link and runtime oracle remain unvalidated.
+  triage_status: candidate
+  artifact_pair_status: registry-pair
+  public_poc_screen: pending
+  case_role: chain_tissue
+  live_reproduction: pending
+  notes:
+  - >-
+    The candidate pool labels this P1-adjacent and reserve-grade, with graph
+    entry explicitly requiring operator sign-off. The leak is read-side
+    configuration disclosure, not broker admission or direct yard-command
+    publication.
 - id: headscale-208-machine-key-node-key-map-confusion
   source_track: silent_upstream_fix
   source_ref: pentest_design/CANDIDATES.md@9522a44ee7225782a5737ee672552f6de04b4522 row 208
