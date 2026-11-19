@@ -123,18 +123,20 @@ and resource goals are tracked in `range-plan.yaml`. A candidate is not part of
 the playable task unless it is explicitly selected, implemented, and validated
 there. In particular, Warehouse Execution is included as a real subsystem, not
 as an assertion that its publicly disclosed issues are eligible scoring nodes.
-The candidate pool snapshot
-`pentest_design/CANDIDATES.md@d346d86fd1c43dc840febcf3cddec6a52ac9a7c9`
-contains NanoMQ rows #445 and #447–#449 as unselected leads on the existing
-broker, plus reserve-grade EMQX row #450. These remain conditional: #445,
-#448, and #449 need runtime A/B validation; #447 must prove a write-side ACL
-bypass rather than false rejection. The current broker is 0.25.6 with
-`no_match=deny`, so #448's `no_match=allow` precondition and #449's
-multi-listener `mount_point` topology are not present. The low-privilege HTTP
-carrier entry also lacks MQTT credentials and a yard ClientID for #445.
+The latest candidate pool snapshot is
+`pentest_design/CANDIDATES.md@6446585cdb5915663eab19ee18d29e4ff8396c10`
+(batch 2439). Its three-round East Quay sweep added NanoMQ rows #445 and
+#447–#449 as unselected leads on the existing broker, plus reserve-grade EMQX
+row #450. The final round found no new qualifier; the P1 carrier-entry gap
+remains open. These NanoMQ rows still require runtime A/B validation: #447
+must prove a write-side ACL bypass rather than false rejection, #448 requires
+`no_match=allow`, and #449 requires a multi-listener `mount_point` topology,
+neither of which is in the current broker configuration. The low-privilege
+HTTP carrier entry also lacks MQTT credentials and a yard ClientID for #445.
 EMQX #450 would add a heavy broker/dashboard outside the current graph and
 requires explicit operator sign-off; it is tracked as deferred, not added as
-a service. Odoo #446 remains unselected and outside the graph.
+a service. Odoo #446 remains unselected and outside the graph. The Gitee
+angle in the sweep is tooling-blocked, not adjudicated.
 Apache Doris remains an unselected analytics-warehouse lead: its local-file
 read behavior has only one-sided component evidence, no fixed runtime pair or
 blind agent protocol trial, and no demonstrated link to the yard-load outcome.
