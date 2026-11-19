@@ -132,6 +132,9 @@ selected/deployed weaknesses. The Headscale differential has no proven
 Harbor route-to-resource bridge. Vulnerability selection remains explicit;
 rendering requires a matching reviewed weakness catalog whenever weaknesses
 are selected and fails rather than silently dropping them.
+Open WES's latest-source build and minimal runtime feasibility checks are
+recorded in `docs/east-quay-openwes-integration-feasibility.md`; that evidence
+does not mean the subsystem has been integrated into the task.
 The validator reports selection bands separately from triage states, so a
 rejected research lead is not confused with a deployable weakness candidate.
 
