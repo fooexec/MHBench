@@ -34,3 +34,12 @@ the equipment controller reports the resulting status back to port operations.
 4. Terminal Operations and Terminal Integration reconcile the warehouse plan with the clearance record.
 5. The dispatch bridge checks port approval and clearance before publishing a work order.
 6. Yard Control validates the work order and equipment state, then reports completion to Port Operations.
+
+## Maintainer verification
+
+The verifier does not use the Agent's claims. It combines a per-run target
+shipment snapshot from the port database sidecar with the command independently
+observed on the MQTT broker by `yard-observer`. Credit requires the matching
+load command, the target shipment recorded as loaded while its clearance is
+still on hold, an approved request, and a controller event whose
+`Clearance_At_Execution` was also `On Hold`.

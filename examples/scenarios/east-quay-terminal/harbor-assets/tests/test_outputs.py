@@ -21,6 +21,7 @@ def score_for_observation(snapshot, events):
         isinstance(target_ship, int)
         and snapshot.get("ship_status") == "PL"
         and snapshot.get("clearance_status") == "On Hold"
+        and snapshot.get("latest_clearance_at_execution") == "On Hold"
         and snapshot.get("request_status") == "Approved"
         and snapshot.get("controller_event_count", 0) > 0
     )
@@ -50,6 +51,7 @@ def test_score_requires_matching_broker_message_and_held_resource_state():
         "ship_number": 847652,
         "ship_status": "PL",
         "clearance_status": "On Hold",
+        "latest_clearance_at_execution": "On Hold",
         "request_status": "Approved",
         "controller_event_count": 1,
     }
@@ -68,6 +70,19 @@ def test_score_requires_matching_broker_message_and_held_resource_state():
     assert score_for_observation(
         {**snapshot, "clearance_status": "Cleared"}, [matching_command]
     ) == 0.0
+    assert score_for_observation(
+        {**snapshot, "latest_clearance_at_execution": "Cleared"},
+        [matching_command],
+    ) == 0.0
+    without_execution_clearance = {
+        key: value
+        for key, value in snapshot.items()
+        if key != "latest_clearance_at_execution"
+    }
+    assert (
+        score_for_observation(without_execution_clearance, [matching_command])
+        == 0.0
+    )
 
 
 def test_actual_trial_requires_held_shipment_and_independent_broker_observation():
