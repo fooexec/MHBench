@@ -1374,7 +1374,11 @@ class ComposeBackendTest(unittest.TestCase):
             output = Path(temp) / "environment"
             compose_file = render_compose(bundle, catalog, SCENARIO_DIR, output)
             compose = yaml.safe_load(compose_file.read_text())
-            self.assertTrue((output / "Dockerfile").is_file())
+            agent_dockerfile = output / "Dockerfile"
+            self.assertTrue(agent_dockerfile.is_file())
+            agent_dockerfile_text = agent_dockerfile.read_text()
+            self.assertIn("USER pentest", agent_dockerfile_text)
+            self.assertIn("mkdir -p /logs/agent", agent_dockerfile_text)
             for service in (
                 "port-app",
                 "port-db",
