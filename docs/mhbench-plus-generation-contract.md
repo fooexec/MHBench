@@ -77,6 +77,13 @@ deployment feasibility, and the concrete East Quay workflow/resource each
 candidate can affect. The useful handoff is a small, plausibly connected set
 (3–5 nodes plus a few alternatives), not a dump of unrelated rows.
 
+For a local polling watch, run
+`python3 scripts/watch_east_quay_candidate_pool.py --repo /path/to/pentest_design --watch`.
+It fetches `origin/main` every five minutes by default and reports changed row
+numbers and East Quay notes. It is read-only and never imports, selects, or
+deploys candidates automatically; a maintainer must review any reported row
+and update the pinned `source_ref` deliberately.
+
 Prefer candidates that apply to real services or realistic deployed
 weaknesses. If these cannot yield a coherent chain, allow a **minimal number**
 of CVE-inspired behavioral analogs; an approved path is limited to one.
