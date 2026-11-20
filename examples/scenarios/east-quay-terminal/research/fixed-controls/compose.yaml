@@ -1,0 +1,52 @@
+services:
+  port-db:
+    build:
+      context: ../../build/port-db
+      dockerfile: Dockerfile
+    environment:
+      MARIADB_DATABASE: eastquay
+      MARIADB_USER: eastquay
+      MARIADB_PASSWORD: local-only
+      MARIADB_ROOT_PASSWORD: local-root-only
+      TARGET_SHIP_NO: "639417"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 2s
+      retries: 40
+  port-app-vulnerable:
+    build:
+      context: ../..
+      dockerfile: research/fixed-controls/Dockerfile.vulnerable
+    environment:
+      DB_HOST: port-db
+      DB_NAME: eastquay
+      DB_USER: eastquay
+      DB_PASSWORD: local-only
+    ports: ["127.0.0.1::80"]
+    depends_on:
+      port-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/index.php >/dev/null"]
+      interval: 3s
+      timeout: 2s
+      retries: 40
+  port-app-fixed:
+    build:
+      context: ../..
+      dockerfile: research/fixed-controls/Dockerfile.fixed
+    environment:
+      DB_HOST: port-db
+      DB_NAME: eastquay
+      DB_USER: eastquay
+      DB_PASSWORD: local-only
+    ports: ["127.0.0.1::80"]
+    depends_on:
+      port-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/index.php >/dev/null"]
+      interval: 3s
+      timeout: 2s
+      retries: 40

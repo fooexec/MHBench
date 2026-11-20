@@ -59,7 +59,8 @@ def main(scenario_file: Path, range_file: Path) -> None:
         click.echo(
             f"{len(range_plan.weakness_candidates)} weakness candidates "
             f"({band_summary}; triage: {triage_summary}); "
-            "none imply selection or deployment"
+            f"{len(range_plan.weaknesses)} explicitly selected/deployed "
+            "weakness instances"
         )
         click.echo(f"candidate source tracks: {track_summary}")
         direct = range_plan.candidates_directly_reachable_from_entry()
@@ -85,6 +86,27 @@ def main(scenario_file: Path, range_file: Path) -> None:
             f"{len(range_plan.candidate_paths)} explicit candidate-path "
             "hypotheses (unapproved; no automatic selection)"
         )
+        for path in range_plan.candidate_paths:
+            trace, reachable = range_plan.candidate_path_capability_trace(path)
+            target = path.target_capability or "<not declared>"
+            outcome = "reachable" if target in reachable else "not reached"
+            click.echo(
+                f"candidate path {path.id} [{path.status}]: "
+                f"{target} {outcome}"
+            )
+            for step in trace:
+                missing = step["missing_capabilities"]
+                grants = step["granted_capabilities"]
+                if missing:
+                    click.echo(
+                        f"  - {step['candidate_id']}: blocked; missing "
+                        f"{', '.join(missing)}"
+                    )
+                else:
+                    click.echo(
+                        f"  - {step['candidate_id']}: prerequisites met; "
+                        f"grants {', '.join(grants) if grants else '(no transition)'}"
+                    )
 
 
 if __name__ == "__main__":

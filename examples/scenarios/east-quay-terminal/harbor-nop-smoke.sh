@@ -14,6 +14,7 @@ uv run python -m src.scenario.render_harbor_task \
   --scenario "$SCENARIO_DIR/scenario.yaml" \
   --range-plan "$SCENARIO_DIR/range-plan.yaml" \
   --catalog "$SCENARIO_DIR/service-catalog.yaml" \
+  --weakness-catalog "$SCENARIO_DIR/weakness-catalog.yaml" \
   --catalog-root "$SCENARIO_DIR" \
   --task-assets "$SCENARIO_DIR/harbor-assets" \
   --output "$TASK_DIR"

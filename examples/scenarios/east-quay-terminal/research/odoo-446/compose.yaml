@@ -1,0 +1,81 @@
+services:
+  db:
+    image: postgres:15-bookworm@sha256:2c4a4939e370b84faab70a970ce455220bdbb916cff67bdee569604b51dc2500
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [odoo-lab]
+
+  vulnerable:
+    build:
+      context: .
+      dockerfile: Dockerfile.vulnerable
+    depends_on:
+      db:
+        condition: service_healthy
+    command:
+      - odoo
+      - --db_host=db
+      - --db_user=odoo
+      - --db_password=odoo
+      - --database=eq_vulnerable
+      - --init=stock
+      - --without-demo=all
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8069/web/login', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 90s
+    networks: [odoo-lab]
+
+  fixed:
+    image: odoo:18.0@sha256:d0b20aa4ec8a4d97ca096ada36275d77963d571c1cb1cceca69faf6098326c83
+    depends_on:
+      db:
+        condition: service_healthy
+    command:
+      - odoo
+      - --db_host=db
+      - --db_user=odoo
+      - --db_password=odoo
+      - --database=eq_fixed
+      - --init=stock
+      - --without-demo=all
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8069/web/login', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 90s
+    networks: [odoo-lab]
+
+  probe:
+    image: python:3.12-slim
+    depends_on:
+      vulnerable:
+        condition: service_healthy
+      fixed:
+        condition: service_healthy
+    entrypoint: ["python3", "/probe.py"]
+    volumes:
+      - ./probe.py:/probe.py:ro
+    networks: [odoo-lab]
+
+networks:
+  odoo-lab:
+    internal: true

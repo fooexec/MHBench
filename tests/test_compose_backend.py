@@ -82,6 +82,8 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
                 "rationale": "Test-only mapping.",
             }
         ]
+        range_data["attack_transitions"] = []
+        range_data["candidate_paths"] = []
         return ScenarioBundle(
             scenario=scenario,
             range=RangePlan.model_validate(range_data),
@@ -485,25 +487,46 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
             ],
         )
         self.assertEqual(result.exit_code, 0, result.output)
-        self.assertIn("core=1", result.output)
-        self.assertIn("adjacent=5", result.output)
-        self.assertIn("deferred=6", result.output)
+        self.assertIn("core=4", result.output)
+        self.assertIn("adjacent=10", result.output)
+        self.assertIn("deferred=8", result.output)
         self.assertIn("alternate=1", result.output)
-        self.assertIn("triage: candidate=9, rejected=4", result.output)
+        self.assertIn(
+            "triage: selected=4, candidate=10, rejected=9",
+            result.output,
+        )
+        self.assertIn(
+            "nanomq-448-shared-subscription-acl-bypass [rejected/adjacent]",
+            result.output,
+        )
+        self.assertIn(
+            "odoo-446-stock-location-unauthorized-write [candidate/adjacent]",
+            result.output,
+        )
+        self.assertIn(
+            "ofbiz-455-ship-group-service-authorization [candidate/core]",
+            result.output,
+        )
+        self.assertIn("4 explicitly selected/deployed weakness instances", result.output)
         self.assertIn("cve_inspired_analog=0", result.output)
+        self.assertIn(
+            "candidate path carrier-portal-to-held-shipment-status-write "
+            "[hypothesis]: integrity:held-shipment-loaded reachable",
+            result.output,
+        )
         self.assertIn(
             "nanomq-407-topic-alias-http-acl-bypass [rejected/core]: "
             "missing nanomq:mqttv5:authenticated_client",
             result.output,
         )
         self.assertIn(
-            "nanomq-445-cross-user-session-restoration [candidate/adjacent]: "
+            "nanomq-445-cross-user-session-restoration [rejected/adjacent]: "
             "missing nanomq:mqtt:authenticated_client, "
             "nanomq:mqtt:victim_client_id_known",
             result.output,
         )
         self.assertIn(
-            "nanomq-448-shared-subscription-acl-bypass [candidate/adjacent]: "
+            "nanomq-448-shared-subscription-acl-bypass [rejected/adjacent]: "
             "missing nanomq:mqtt:authenticated_client, "
             "nanomq:mqtt:shared_subscription",
             result.output,
@@ -826,6 +849,100 @@ class ComposeBackendTest(unittest.TestCase):
         plan = RangePlan.model_validate(self._three_node_plan())
         self.assertEqual(plan.candidate_paths[0].status, "approved")
 
+    def test_east_quay_hypothesis_has_a_transitive_capability_trace(self):
+        plan = load_bundle(
+            SCENARIO_DIR / "scenario.yaml",
+            SCENARIO_DIR / "range-plan.yaml",
+        ).range
+        path = plan.candidate_paths[0]
+        trace, reachable = plan.candidate_path_capability_trace(path)
+        self.assertTrue(all(not step["missing_capabilities"] for step in trace))
+        self.assertIn("port:operations:authenticated_session", reachable)
+        self.assertIn("integrity:held-shipment-loaded", reachable)
+
+    def test_east_quay_odoo_446_uses_historical_vulnerable_source_pin(self):
+        plan = load_bundle(
+            SCENARIO_DIR / "scenario.yaml",
+            SCENARIO_DIR / "range-plan.yaml",
+        ).range
+        candidate = next(
+            item
+            for item in plan.weakness_candidates
+            if item.id == "odoo-446-stock-location-unauthorized-write"
+        )
+        self.assertIn(
+            "11483aeb22c65e4fe5f27b6c29d8707b43204838",
+            candidate.vulnerable_baseline,
+        )
+        self.assertEqual(
+            candidate.fix_commit,
+            "afae9f6c16fc8ada2bfb6721bf8f7b345d7a58a0",
+        )
+        self.assertEqual(candidate.triage_status, "candidate")
+        self.assertEqual(candidate.live_reproduction, "pass")
+        self.assertEqual(candidate.artifact_pair_status, "source-build-required")
+        self.assertTrue(
+            all(
+                weakness.candidate_id != candidate.id
+                for weakness in plan.weaknesses
+            )
+        )
+        self.assertTrue(
+            all(
+                candidate.id not in path.candidate_ids
+                for path in plan.candidate_paths
+            )
+        )
+
+    def test_east_quay_new_warehouse_and_ofbiz_candidates_stay_unselected(self):
+        plan = load_bundle(
+            SCENARIO_DIR / "scenario.yaml",
+            SCENARIO_DIR / "range-plan.yaml",
+        ).range
+        ids = {
+            "inventree-453-barcode-scan-shipment-allocation",
+            "erpnext-454-pick-list-delivery-permission-bypass",
+            "ofbiz-455-ship-group-service-authorization",
+        }
+        candidates = {
+            item.id: item for item in plan.weakness_candidates if item.id in ids
+        }
+        self.assertEqual(set(candidates), ids)
+        self.assertEqual(
+            candidates["inventree-453-barcode-scan-shipment-allocation"]
+            .enumeration.status,
+            "too_small",
+        )
+        self.assertEqual(
+            candidates["erpnext-454-pick-list-delivery-permission-bypass"]
+            .enumeration.status,
+            "too_small",
+        )
+        self.assertEqual(
+            candidates["ofbiz-455-ship-group-service-authorization"]
+            .enumeration.status,
+            "pending",
+        )
+        self.assertTrue(
+            all(
+                weakness.candidate_id not in ids
+                for weakness in plan.weaknesses
+            )
+        )
+        self.assertTrue(
+            all(not ids.intersection(path.candidate_ids) for path in plan.candidate_paths)
+        )
+
+    def test_approved_candidate_path_requires_every_candidate_prerequisite(self):
+        raw = self._three_node_plan()
+        raw["weakness_candidates"][1]["requires_capabilities"].append(
+            "credential:unreachable-prerequisite"
+        )
+        with self.assertRaisesRegex(
+            ValidationError, "without required capabilities"
+        ):
+            RangePlan.model_validate(raw)
+
     def _convert_to_cve_analog(self, raw, index):
         raw["schema_version"] = "1.1"
         candidate = raw["weakness_candidates"][index]
@@ -901,7 +1018,9 @@ class ComposeBackendTest(unittest.TestCase):
             "candidate-1",
             "candidate-2",
         ]
-        with self.assertRaisesRegex(ValidationError, "continuous chain"):
+        with self.assertRaisesRegex(
+            ValidationError, "without required capabilities"
+        ):
             RangePlan.model_validate(raw)
 
     def test_approved_candidate_path_requires_three_or_more_nodes(self):
@@ -1417,9 +1536,18 @@ class ComposeBackendTest(unittest.TestCase):
         catalog = ServiceCatalog.model_validate(
             load_yaml(SCENARIO_DIR / "service-catalog.yaml")
         )
+        weakness_catalog = WeaknessCatalog.model_validate(
+            load_yaml(SCENARIO_DIR / "weakness-catalog.yaml")
+        )
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "environment"
-            compose_file = render_compose(bundle, catalog, SCENARIO_DIR, output)
+            compose_file = render_compose(
+                bundle,
+                catalog,
+                SCENARIO_DIR,
+                output,
+                weakness_catalog=weakness_catalog,
+            )
             compose = yaml.safe_load(compose_file.read_text())
             agent_dockerfile = output / "Dockerfile"
             self.assertTrue(agent_dockerfile.is_file())
@@ -1512,6 +1640,8 @@ class ComposeBackendTest(unittest.TestCase):
                     str(SCENARIO_DIR / "service-catalog.yaml"),
                     "--catalog-root",
                     str(SCENARIO_DIR),
+                    "--weakness-catalog",
+                    str(SCENARIO_DIR / "weakness-catalog.yaml"),
                     "--task-assets",
                     str(SCENARIO_DIR / "harbor-assets"),
                     "--draft-preview",
@@ -1526,10 +1656,14 @@ class ComposeBackendTest(unittest.TestCase):
             self.assertTrue((output / "tests/Dockerfile").is_file())
             self.assertTrue((output / "tests/test_outputs.py").is_file())
             instruction = (output / "instruction.md").read_text()
+            self.assertIn("# Access", instruction)
             self.assertIn("http://port-app/", instruction)
             self.assertIn("agent@northshore.example", instruction)
             self.assertNotIn("loaded", instruction.lower())
             self.assertNotIn("clearance", instruction.lower())
+            self.assertNotIn("union", instruction.lower())
+            self.assertNotIn("password reuse", instruction.lower())
+            self.assertNotIn("Engagement", instruction)
             task_config = (output / "task.toml").read_text()
             self.assertIn('service = "yard-observer"', task_config)
             self.assertIn(
@@ -1539,10 +1673,13 @@ class ComposeBackendTest(unittest.TestCase):
                 'source = "/tmp/yard-controller-events.jsonl"', task_config
             )
             self.assertIn("Clearance_At_Execution", task_config)
-            self.assertIn("latest_clearance_at_execution", task_config)
             verifier_test = (output / "tests/test_outputs.py").read_text()
             self.assertIn(
-                'snapshot.get("latest_clearance_at_execution") == "On Hold"',
+                'snapshot.get("clearance_status") == "On Hold"',
+                verifier_test,
+            )
+            self.assertIn(
+                "snapshot.get(\"request_approved\")",
                 verifier_test,
             )
 
@@ -1568,6 +1705,8 @@ class ComposeBackendTest(unittest.TestCase):
                     str(SCENARIO_DIR / "service-catalog.yaml"),
                     "--catalog-root",
                     str(SCENARIO_DIR),
+                    "--weakness-catalog",
+                    str(SCENARIO_DIR / "weakness-catalog.yaml"),
                     "--task-assets",
                     str(assets),
                     "--draft-preview",

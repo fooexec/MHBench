@@ -16,6 +16,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from textwrap import shorten, wrap
 
 
 PART_RE = re.compile(r"\[(candidates/part-\d+\.md)\]")
@@ -25,6 +26,10 @@ SNAPSHOT_RE = re.compile(
 )
 ROW_RE = re.compile(r"^\+\|\s*(\d+)\s*\|\s*([^|]+)\|")
 EAST_QUAY_RE = re.compile(r"East Quay", re.IGNORECASE)
+MAX_EAST_QUAY_NOTES = 3
+MAX_NOTE_CHARS = 280
+MAX_CANDIDATE_PREVIEW_CHARS = 1600
+CANDIDATE_PREVIEW_WIDTH = 180
 
 
 def git(repo: Path, *args: str) -> str:
@@ -82,19 +87,56 @@ def report_delta(repo: Path, previous: str, current: str) -> None:
         if not re.fullmatch(r"candidates/part-\d+\.md", path):
             continue
         diff = git(repo, "diff", "--unified=0", previous, current, "--", path)
-        found_row = False
+        found_rows: dict[str, tuple[str, str]] = {}
+        east_quay_notes: list[str] = []
         for line in diff.splitlines():
             row = ROW_RE.match(line)
             if row:
-                found_row = True
+                row_text = line[1:].strip()
+                found_rows[row.group(1)] = (
+                    row.group(2).strip(),
+                    row_text[:MAX_CANDIDATE_PREVIEW_CHARS],
+                )
+            elif (
+                line.startswith("+")
+                and not line.startswith("+++")
+                and EAST_QUAY_RE.search(line)
+            ):
+                note = " ".join(line[1:].split())
+                if note not in east_quay_notes:
+                    east_quay_notes.append(note)
+
+        for row_id, (project, preview) in sorted(
+            found_rows.items(), key=lambda item: int(item[0])
+        ):
+            print(
+                f"  candidate row #{row_id}: {project} ({path})",
+                flush=True,
+            )
+            preview = " ".join(preview.split())
+            if len(preview) >= MAX_CANDIDATE_PREVIEW_CHARS:
+                preview += " … [preview truncated; inspect source row]"
+            for line in wrap(
+                preview,
+                width=CANDIDATE_PREVIEW_WIDTH,
+                break_long_words=False,
+                break_on_hyphens=False,
+            ):
+                print(f"    {line}", flush=True)
+        if east_quay_notes:
+            omitted = max(0, len(east_quay_notes) - MAX_EAST_QUAY_NOTES)
+            print(
+                f"  East Quay notes ({path}): {len(east_quay_notes)} distinct "
+                f"added lines; showing latest {min(len(east_quay_notes), MAX_EAST_QUAY_NOTES)}"
+                + (f", {omitted} omitted" if omitted else ""),
+                flush=True,
+            )
+            for note in east_quay_notes[-MAX_EAST_QUAY_NOTES:]:
                 print(
-                    f"  candidate row #{row.group(1)}: {row.group(2).strip()} "
-                    f"({path})",
+                    f"    {shorten(note, width=MAX_NOTE_CHARS, placeholder='…')}",
                     flush=True,
                 )
-            elif line.startswith("+") and not line.startswith("+++") and EAST_QUAY_RE.search(line):
-                print(f"  East Quay note ({path}): {line[1:].strip()}", flush=True)
-        if not found_row:
+        if not found_rows and not east_quay_notes:
             print(f"  changed candidate content: {path}", flush=True)
     print(
         "  Review the source row and its evidence before editing MHBench; "

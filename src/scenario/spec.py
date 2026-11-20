@@ -780,6 +780,47 @@ class RangePlan(SpecModel):
             if set(candidate.requires_capabilities) <= entry_capabilities
         ]
 
+    def candidate_path_capability_trace(
+        self, path: CandidatePathHypothesis
+    ) -> tuple[list[dict[str, object]], set[str]]:
+        """Trace capability prerequisites/grants in a candidate path order.
+
+        For deployed weakness instances, transitions are the authoritative
+        grants. For an undeployed hypothesis node, its declared grants are
+        provisional planning edges only.
+        """
+        candidates = {item.id: item for item in self.weakness_candidates}
+        weakness_by_candidate = {
+            item.candidate_id: item for item in self.weaknesses
+        }
+        reachable = set(self.entry_state.capabilities)
+        trace: list[dict[str, object]] = []
+
+        for candidate_id in path.candidate_ids:
+            candidate = candidates[candidate_id]
+            missing = sorted(set(candidate.requires_capabilities) - reachable)
+            weakness = weakness_by_candidate.get(candidate_id)
+            if weakness is None:
+                grants = sorted(candidate.grants_capabilities) if not missing else []
+            else:
+                grants = sorted(
+                    {
+                        transition.to_capability
+                        for transition in self.attack_transitions
+                        if transition.weakness_id == weakness.id
+                        and transition.from_capability in reachable
+                    }
+                ) if not missing else []
+            reachable.update(grants)
+            trace.append(
+                {
+                    "candidate_id": candidate_id,
+                    "missing_capabilities": missing,
+                    "granted_capabilities": grants,
+                }
+            )
+        return trace, reachable
+
     @model_validator(mode="after")
     def validate_internal_references(self) -> "RangePlan":
         if self.schema_version == "1.0" and any(
@@ -1001,6 +1042,17 @@ class RangePlan(SpecModel):
                     )
                 reachable = set(self.entry_state.capabilities)
                 for candidate_id in path.candidate_ids:
+                    candidate = candidates[candidate_id]
+                    assert isinstance(candidate, WeaknessCandidate)
+                    missing_requirements = (
+                        set(candidate.requires_capabilities) - reachable
+                    )
+                    if missing_requirements:
+                        raise ValueError(
+                            f"approved candidate path {path.id} reaches "
+                            f"{candidate_id} without required capabilities: "
+                            f"{sorted(missing_requirements)}"
+                        )
                     candidate_grants: set[str] = set()
                     for transition in self.attack_transitions:
                         weakness = weaknesses[transition.weakness_id]
