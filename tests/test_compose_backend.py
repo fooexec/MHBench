@@ -488,11 +488,11 @@ class ScenarioSemanticValidationTest(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("core=4", result.output)
-        self.assertIn("adjacent=10", result.output)
-        self.assertIn("deferred=8", result.output)
+        self.assertIn("adjacent=11", result.output)
+        self.assertIn("deferred=10", result.output)
         self.assertIn("alternate=1", result.output)
         self.assertIn(
-            "triage: selected=4, candidate=10, rejected=9",
+            "triage: selected=4, candidate=13, rejected=9",
             result.output,
         )
         self.assertIn(
@@ -931,6 +931,46 @@ class ComposeBackendTest(unittest.TestCase):
         )
         self.assertTrue(
             all(not ids.intersection(path.candidate_ids) for path in plan.candidate_paths)
+        )
+
+    def test_east_quay_latest_mqtt_and_shopware_leads_are_unselected(self):
+        plan = load_bundle(
+            SCENARIO_DIR / "scenario.yaml",
+            SCENARIO_DIR / "range-plan.yaml",
+        ).range
+        candidate_ids = {
+            "moquette-456-lwt-acl-bypass",
+            "flashmq-457-will-publish-acl-bypass",
+            "shopware-458-order-actions-authorization",
+        }
+        candidates = {
+            item.id: item for item in plan.weakness_candidates
+            if item.id in candidate_ids
+        }
+        self.assertEqual(set(candidates), candidate_ids)
+        for candidate in candidates.values():
+            self.assertEqual(candidate.triage_status, "candidate")
+            self.assertTrue(
+                all(
+                    weakness.candidate_id != candidate.id
+                    for weakness in plan.weaknesses
+                )
+            )
+            self.assertTrue(
+                all(
+                    candidate.id not in path.candidate_ids
+                    for path in plan.candidate_paths
+                )
+            )
+        self.assertEqual(
+            candidates["flashmq-457-will-publish-acl-bypass"]
+            .enumeration.status,
+            "too_small",
+        )
+        self.assertEqual(
+            candidates["moquette-456-lwt-acl-bypass"]
+            .enumeration.status,
+            "too_small",
         )
 
     def test_approved_candidate_path_requires_every_candidate_prerequisite(self):

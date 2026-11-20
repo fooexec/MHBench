@@ -1851,6 +1851,184 @@ weakness_candidates:
     Release24.09.08 is cited as vulnerable; the fix is merged on release24.09
     and trunk but has no fixed release tag. Use a pinned fixed source commit,
     not a moving branch, for the control.
+- id: moquette-456-lwt-acl-bypass
+  source_track: silent_upstream_fix
+  source_ref: pentest_design/CANDIDATES.md@f84155f621c0b08b426a0c242e4d68f2d8acce01 row 456
+  product: Moquette (moquette-io/moquette), MQTT broker
+  vulnerable_baseline: v0.18.5
+  fix_commit: 38802589c5f034fb2b2dd13fb791a97becd7ac65
+  mechanism: >-
+    The broker evaluates Last Will publication ACL using a hardcoded
+    WILL_PUBLISHER identity rather than the owning client's username/client ID.
+    A low-privilege authenticated MQTT client can configure a Last Will on an
+    ACL-denied yard topic and cause the broker to publish it when the
+    connection drops. A separate main-branch fix rechecks queued messages
+    against the new principal after session takeover.
+  precondition: >-
+    The attacker has a valid low-privilege MQTT credential; an ACL
+    authorizator and authenticator are enabled; that principal is denied write
+    access to the yard command topic.
+  requires_capabilities: [moquette:mqtt:authenticated_low_privilege_client]
+  grants_capabilities: [moquette:mqtt:publish_acl_denied_yard_topic]
+  resource_effects: [integrity:yard_command_topic]
+  environment_preconditions:
+  - Moquette v0.18.5 with username/password authentication and ACL-file authorization.
+  - The broker has a yard-command topic ACL that denies the attacker's username.
+  - A justified carrier/warehouse device-fleet credential bridge exists.
+  business_fit: >-
+    A broker could serve the existing yard message network, but Moquette would
+    replace NanoMQ rather than be added as a parallel broker. The message
+    publication has direct yard-command impact only when the target topic and
+    controller semantics match the East Quay workflow.
+  selection_band: deferred
+  selection_rationale: >-
+    Keep as an operator-decision-gated MQTT alternative. The candidate row
+    labels its repository-scoped GHSAs as GHSA-PORT and explicitly requires
+    deciding whether that disclosure class is acceptable; it also has no
+    released fixed tag because both fixes are main-only. It must not be
+    adopted automatically or treated as equivalent to a clean silent fix.
+    The protocol cost is low and there is a shaped device-credential bridge,
+    so it is not suitable as the primary difficulty-bearing node.
+  triage_status: candidate
+  artifact_pair_status: source-build-required
+  public_poc_screen: pending
+  case_role: chain_tissue
+  enumeration:
+    status: too_small
+    surface: MQTT 3.1.1 CONNECT with Will Topic/Payload and clean disconnect
+    authentication_state: authenticated low-privilege MQTT client
+    input_fields: [will_topic, will_payload, ACL username]
+    minimum_search_space: 1
+    interaction_rounds: 2
+    protocol_construction_required: false
+    rationale: >-
+      The candidate describes ordinary MQTT Last Will semantics and topics
+      known from broker configuration; the source row rates protocol and search
+      cost low, below the benchmark's preferred primary-node threshold.
+  live_reproduction: pending
+  notes:
+  - >-
+    Candidate-pool row #456 says both the LWT ACL fix and session-takeover fix
+    exist only on main and no released tag contains either fix. The exact
+    vulnerable/fixed runtime pair has not been reproduced in this repository.
+  - >-
+    The operator decision on the GHSA-PORT fallback and the #445 public
+    reproduction precedent remains unresolved; do not replace NanoMQ with
+    Moquette until that disposition is made.
+- id: flashmq-457-will-publish-acl-bypass
+  source_track: silent_upstream_fix
+  source_ref: pentest_design/CANDIDATES.md@f84155f621c0b08b426a0c242e4d68f2d8acce01 row 457
+  product: FlashMQ (halfgaar/FlashMQ), MQTT broker
+  vulnerable_baseline: v0.9.6
+  fix_commit: 55108074b66746038666c0147e022142df03f8e7
+  mechanism: >-
+    Before the fix, both immediate and delayed Last Will publication paths
+    bypassed the broker ACL check. An authenticated low-privilege MQTT client
+    could set a Will payload for a restricted yard topic and have the broker
+    publish it on disconnect, with the Will RETAIN flag preserved.
+  precondition: >-
+    The attacker has a valid low-privilege MQTT credential and can reach a
+    FlashMQ broker with an ACL that denies that identity's publish to a yard
+    topic.
+  requires_capabilities: [flashmq:mqtt:authenticated_low_privilege_client]
+  grants_capabilities: [flashmq:mqtt:publish_acl_denied_yard_topic]
+  resource_effects: [integrity:yard_command_topic]
+  environment_preconditions:
+  - FlashMQ v0.9.6 with username/password authentication and ACL authorization.
+  - The attacker's username is denied publish to the yard-command topic.
+  - A justified carrier/warehouse device-fleet credential bridge exists.
+  business_fit: >-
+    Will publication could affect the existing yard message network, but
+    FlashMQ would replace NanoMQ rather than be added beside it. The producer
+    classifies this as an optional P3 lane; it is a message-plane candidate,
+    not the missing carrier-portal P1 node.
+  selection_band: deferred
+  selection_rationale: >-
+    Retain as an optional broker alternative because the candidate pool
+    reports a silent fix and a released v0.9.6/v1.0.0 vulnerable/fixed tag pair.
+    The fix is triggered by familiar MQTT Will fields with a very small
+    search space and low knowledge cost, so this should not be a primary
+    difficulty-bearing node. No separate FlashMQ broker should be added
+    unless it replaces NanoMQ in the yard-message design.
+  triage_status: candidate
+  artifact_pair_status: source-build-required
+  public_poc_screen: pending
+  case_role: chain_tissue
+  enumeration:
+    status: too_small
+    surface: MQTT CONNECT Will Topic/Payload and RETAIN flag
+    authentication_state: authenticated low-privilege MQTT client
+    input_fields: [will_topic, will_payload, will_retain]
+    minimum_search_space: 1
+    interaction_rounds: 2
+    protocol_construction_required: false
+    rationale: >-
+      The candidate is deterministic and uses standard MQTT Will semantics;
+      the source row rates knowledge cost low. It can only be a secondary
+      chain-tissue candidate, not the principal challenge.
+  live_reproduction: pending
+  notes:
+  - >-
+    Candidate-pool row #457 identifies v0.9.6 as vulnerable and v1.0.0 as fixed
+    and reports a silent advisory screen. The producer recommends an
+    image-preparation smoke build because there is no official registry image.
+  - >-
+    This is not a carrier-portal entry weakness and does not solve the
+    unresolved service/credential bridge to the yard broker.
+- id: shopware-458-order-actions-authorization
+  source_track: silent_upstream_fix
+  source_ref: pentest_design/CANDIDATES.md@f84155f621c0b08b426a0c242e4d68f2d8acce01 row 458
+  product: Shopware (shopware/shopware), commerce/order subsystem
+  vulnerable_baseline: v6.7.13.1
+  fix_commit: fd2e33e475a36d4338926aa8488fd678beea645e
+  mechanism: >-
+    Authorization checks were missing from multiple order _action endpoints.
+    Depending on the endpoint, the defect allows rewriting order line items
+    that drive warehouse pick contents, changing the delivery address, or
+    converting an order to a cart and reading the full order.
+  precondition: >-
+    The attacker has a Shopware account or integration credential that can
+    reach affected _action endpoints but lacks the corresponding order or
+    shipping-management privileges.
+  requires_capabilities: [shopware:order:authenticated_limited_account]
+  grants_capabilities:
+  - shopware:order:line_items_rewritten
+  - shopware:order:delivery_address_changed
+  - shopware:order:full_order_read
+  resource_effects:
+  - integrity:warehouse_pick_contents
+  - integrity:shipment_delivery_destination
+  business_fit: >-
+    Order contents, pick lists, and delivery addresses are adjacent to
+    East Quay's outbound workflow, but Shopware is a commerce platform rather
+    than a port or warehouse system. It should only be considered if a
+    legitimate carrier/order integration relationship makes it a replacement
+    or existing upstream order channel, not an unrelated fourth business app.
+  selection_band: adjacent
+  selection_rationale: >-
+    Keep as a candidate pending the producer's smoke-build and an explicit
+    Shopware-to-warehouse/carrier account bridge. The candidate-pool row has a
+    released v6.7.13.1/v6.7.14.0 pair, but no official versioned Docker image;
+    a reproducible Composer build and runtime A/B are still required. Its
+    P2 business effect is plausible, but it does not supply a yard-command
+    transition or independently close the carrier-to-operations gap.
+  triage_status: candidate
+  artifact_pair_status: source-build-required
+  public_poc_screen: pending
+  case_role: chain_tissue
+  enumeration:
+    status: pending
+  live_reproduction: pending
+  notes:
+  - >-
+    Candidate-pool row #458 reports that its two GHSA identifiers are
+    unpublished draft advisories, with no matches across the published
+    repository advisories. This local plan has not independently reviewed
+    those draft disclosures or performed the required public-PoC screen.
+  - >-
+    Candidate-pool row #458 says the producer's smoke-build is pending.
+    Do not add Shopware to the East Quay Compose graph before that build,
+    vulnerable/fixed A/B, and business bridge are validated.
 artifact_observations:
 - checked_on: '2026-11-20'
   candidate_ids: [ofbiz-455-ship-group-service-authorization]
