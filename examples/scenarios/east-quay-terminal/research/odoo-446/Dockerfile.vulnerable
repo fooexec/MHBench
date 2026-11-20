@@ -1,0 +1,13 @@
+FROM odoo:18.0@sha256:d0b20aa4ec8a4d97ca096ada36275d77963d571c1cb1cceca69faf6098326c83
+
+# Reconstruct only the historical ACL state for an isolated component A/B.
+# The base image is the current, fixed Odoo 18.0 image; the vulnerable side
+# restores the exact perm_write=1 ACL removed by the upstream fix.
+USER root
+RUN sed -i \
+      's/^access_stock_location_user,stock.location.user,model_stock_location,stock.group_stock_user,1,0,0,0$/access_stock_location_user,stock.location.user,model_stock_location,stock.group_stock_user,1,1,0,0/' \
+      /usr/lib/python3/dist-packages/odoo/addons/stock/security/ir.model.access.csv \
+    && grep -Fx \
+      'access_stock_location_user,stock.location.user,model_stock_location,stock.group_stock_user,1,1,0,0' \
+      /usr/lib/python3/dist-packages/odoo/addons/stock/security/ir.model.access.csv
+USER odoo

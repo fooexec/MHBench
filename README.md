@@ -65,10 +65,224 @@ Pass one of these values to `--type`:
 Run logs, Ansible artifacts, and Terraform outputs are stored under
 `./output/misc/<timestamp>/`.
 
+## Scenario input (new, authoring/validation stage)
+
+The existing MHBench deployment CLI takes `--type` as either a built-in
+environment class or a generated **NetworkTopology JSON** file. That model
+describes hosts, subnets, users, vulnerabilities, goals, and attack paths; it
+does not currently define business departments, workflows, or concrete
+container service builds.
+
+The new backend-neutral input has two YAML documents, documented by the schemas
+in `src/scenario/spec.py`:
+
+1. `scenario.yaml` describes the business context: departments, actors,
+   systems, normal workflows, and explicit system interactions. Interactions
+   distinguish service integrations from human handoffs; shared workflow
+   membership alone does not create a network/API edge. It does not select
+   vulnerabilities.
+2. `range-plan.yaml` realizes that scenario with concrete service references,
+   the agent's explicit `entry_state` and separate Harbor `main` environment,
+   network placement, service flows,
+   capability-transition hypotheses, and resource goals. It can also carry
+   `weakness_candidates` (sourced leads not
+   yet selected or deployed) separately from `weaknesses` (selected instances
+   that must resolve to deployable templates and explicitly name their
+   `candidate_id`). In schema 1.1, each deployed weakness also names its
+   `workflow_id`, and its service must participate in that workflow.
+   Candidate tracks distinguish CVE/no-public-PoC, silent
+   upstream fix, deployed weakness, and an explicitly labeled
+   `cve_inspired_analog`. The latter records its source CVE separately and
+   must not imply that the target product is affected by it. Approved paths
+   allow at most one such analog, and if it is the primary node, K3 must come
+   from constructing the adapted protocol. Actual CVE candidates need dated, per-source
+   search evidence across CVE.org, NVD, vendor advisory, GitHub, GitLab,
+   Exploit-DB, Packet Storm, Metasploit, Nuclei, and general web search;
+   unavailable sources need domain-restricted web-search fallbacks, and an
+   exact public reproducer blocks selection. The compiler does not randomly
+   choose from the candidate pool; selection is an explicit, reviewed input.
+
+An illustrative pair is in `examples/scenarios/east-quay-terminal/`. Validate
+both together with:
+
+```bash
+uv run python -m src.scenario.validate \
+  examples/scenarios/east-quay-terminal/scenario.yaml \
+  examples/scenarios/east-quay-terminal/range-plan.yaml
+```
+
+Validation checks schema, references, selection evidence gates, and any
+approved ordered capability chain; it does not resolve or build weakness
+catalog entries. The East Quay YAML remains independent of the existing
+OpenStack `--type` JSON deployment path. Its current service catalog resolves
+to a Harbor-compatible Compose
+environment; its research pool currently contains a **rejected** NanoMQ lead,
+a **deferred** Headscale remote-access lead, two **rejected** Open WES leads,
+an unselected Apache Doris analytics lead, a **rejected** Dagu remote-node
+authorization lead, and a **rejected** NetXMS command-injection lead. Dagu's
+vulnerable/fixed release pair is now available (`v2.26.0`/`v2.27.0`), but the
+API-layer reproduction harness is public in PR #100, so it fails our
+public-reproducer gate. The official OSS image also requires Dagu Pro to
+create the needed read-only user. Dagu remains outside the service graph; it
+must not be scored or added merely to reach a node count. NetXMS #321 has a
+local 5.2.7/5.2.8 image differential, but the NetXMS 5.2 patch release 8
+announcement discloses the same command-injection class, and no East Quay
+route to a NetXMS Agent is established.
+The Open WES active-plugin revision A/B test showed a state difference, but
+the vulnerable upstream baseline had no pluginDeveloper/pluginAdmin
+service-layer split, so that difference was not a demonstrated
+security-boundary bypass. Its separate CVE-2026-111721 stock-scope issue was
+rejected after finding a public detailed reproducer and low-cost REST/ID path.
+Open WES is now included as an unscored warehouse subsystem; the known
+cross-warehouse mutation sinks are guarded and blocked at the agent-facing
+portal, but the yard bridge still does not consume WES order state. Apache
+Doris #389 may fit a port cargo analytics workflow and has a SQL protocol
+surface, but it is not yet in the service graph; image/runtime weight, K3 cost,
+and manifest-to-yard resource link remain unverified. There is no approved
+candidate path and still zero selected/deployed weaknesses. The Headscale
+differential has no proven Harbor route-to-resource bridge. Vulnerability
+selection remains explicit;
+rendering requires a matching reviewed weakness catalog whenever weaknesses
+are selected and fails rather than silently dropping them.
+Open WES's source pin, compatibility changes, and runtime evidence are
+recorded in `docs/east-quay-openwes-integration-feasibility.md`.
+The validator reports selection bands separately from triage states, so a
+rejected research lead is not confused with a deployable weakness candidate.
+
+The business-semantic validator also rejects duplicate department/actor/system/
+workflow IDs, repeated workflow associations, systems that appear in no
+business workflow, and workflow actors whose departments have no relationship
+to the systems participating in that workflow. This keeps organizational and
+business relationships traceable instead of allowing unrelated systems or
+departments to be added just to enlarge the range.
+
+Candidate review also records K1 (identify the served stack), K2 (identify and
+understand its defect), K3 (construct the required wire message), and the
+minimum enumeration/search cost. A selected primary node must pass the
+enumeration screen and demonstrate at least one threshold. An approved
+candidate path requires at least three explicitly deployed nodes, a declared
+primary node, and at least one evidenced K3 protocol-construction cost; the
+path remains a composition hypothesis, not an instruction to the agent.
+
+### Compose backend prototype
+
+A separate Compose renderer now resolves `RangePlan.services[].catalog_ref`
+against a service catalog, emits the Harbor `environment/Dockerfile` for the
+unprivileged `main` agent, and writes a `docker-compose.yaml` overlay with
+target services, networks, healthchecks, and copied build contexts. Harbor
+provides the base `main` service; the task overlay adds its task-local network
+attachments and security settings without replacing Harbor's built image.
+Build-backed service templates may select a named multi-stage Dockerfile
+`build_target`; reviewed file overlays are inserted into that same stage.
+The renderer can set a per-service `mem_limit` and healthcheck `start_period`;
+`depends_on` uses `service_healthy` when the referenced service defines a
+healthcheck.
+An explicit `--weakness-catalog` can add reviewed file overlays to build-backed
+services; it does not select candidates or support arbitrary deployment
+scripts.
+
+```bash
+uv run python -m src.scenario.render_compose \
+  --scenario examples/compose-smoke/scenario.yaml \
+  --range-plan examples/compose-smoke/range-plan.yaml \
+  --catalog examples/compose-smoke/service-catalog.yaml \
+  --catalog-root examples/compose-smoke \
+  --output /tmp/mhbench-compose-smoke
+
+docker compose --project-directory /tmp/mhbench-compose-smoke \
+  -f examples/compose-smoke/harness-compose.yaml \
+  -f /tmp/mhbench-compose-smoke/docker-compose.yaml config --quiet
+```
+
+`examples/compose-smoke/` is only a renderer smoke fixture, not a benchmark
+scenario. For the actual East Quay stack, run:
+
+```bash
+./examples/scenarios/east-quay-terminal/smoke.sh
+```
+
+The integration smoke uses the installed Harbor Compose build base when
+available. It verifies that `main` can reach the port app and MQTT edge broker,
+cannot reach the database, dispatch bridge, or controller, has no public
+egress, runs as a non-root user, is not privileged, and has no host bind or
+explicit host mounts. It also asserts private PID/IPC namespaces for the agent
+and each target container; target services must declare the `unless-stopped`
+restart policy and report healthy at startup. The smoke confirms the agent
+cannot read the database's per-run target marker or the observer's verifier
+evidence file, and rejects both anonymous and carrier-session POSTs to the
+upstream app's legacy vessel-status mutator without changing the target state.
+It exercises carrier/staff login, the clearance hold, the dispatch bridge,
+NanoMQ HTTP authentication/ACL, and the separately containerized, read-only
+broker observer that records the command actually delivered on the yard topic.
+These checks verify the configured process-exit restart policy and startup
+health, not healthcheck-driven recovery: a still-running but unhealthy
+container is not automatically restarted by the Compose restart policy, and
+this range does not currently add a separate watchdog.
+
+### Harbor task compiler
+
+MHBench also compiles the generated environment together with reviewed Harbor
+task assets. It emits the entry-only `instruction.md` from `range-plan.yaml`,
+copies the authored README/tests/solution assets, and writes
+`environment/Dockerfile`, `environment/docker-compose.yaml`, and target build
+contexts:
+
+```bash
+./examples/scenarios/east-quay-terminal/harbor-nop-smoke.sh
+```
+
+This smoke uses `--draft-preview`, runs `harbor lint`, then executes the
+compiled task directory directly with Harbor's no-op agent and
+`environment.force_build: true`. It checks that the generated agent
+`environment/Dockerfile` is used, all sidecar artifacts are collected, the
+shipment remains on hold, and reward is exactly 0.0. `harbor exec` flags mode
+defaults to `ubuntu:latest`, so it can exercise services and the verifier
+without building the task's `environment/Dockerfile`.
+
+The East Quay task package is exercised end to end with Harbor 0.25.0 and its
+separate verifier Dockerfile. Harbor collects a command observation written by
+the passive broker subscriber (not by the equipment-control process) and a
+post-agent DB snapshot from target sidecars, then passes those artifacts to
+the separate test environment. The no-op trial scored 0.0, as expected,
+confirming that the verifier does not award credit from an agent-reported
+result. This validates only the baseline and negative scoring path; it is not
+evidence that an exploit path has been found.
+
+This is still an **integration-preview task**, not a release-ready benchmark:
+the vulnerable chain has no selected nodes yet. Candidate 407 (NanoMQ v5
+topic-alias / HTTP ACL) is retained as rejected evidence only. Source
+inspection of 0.25.6 shows empty-topic ACL parsing returns `NOT_AUTHORIZED`
+before alias resolution; the public fix commit describes a false rejection,
+not unauthorized command delivery. NanoMQ remains in the business topology as
+the real MQTT message boundary, but no security credit is assigned to that
+candidate.
+
+Candidate 407 (NanoMQ v5 topic-alias / HTTP ACL) is retained as rejected
+evidence only. Source inspection of the 0.25.6 tag shows empty-topic ACL
+parsing returns `NOT_AUTHORIZED` before alias resolution; the public fix
+commit's regression test describes false rejection, not unauthorized command
+delivery. The candidate ledger and East Quay plan record the audit. NanoMQ
+remains in the business topology as the real MQTT message boundary, but no
+security credit is assigned to that candidate.
+
+### Optional LLM refinement
+
+MHBench+ is expected to generate a deterministic runnable range skeleton; it
+does not need an LLM to randomize topology, select weaknesses, render Compose,
+or compile Harbor tasks. After the skeleton exists, an optional LLM authoring
+step can improve business coherence and Harbor-facing case materials. Its
+proposed edits are untrusted and require human review plus the existing schema,
+evidence, deployment, and Harbor gates. The end-to-end input/output and
+candidate-pool handoff are defined in
+[`docs/mhbench-plus-generation-contract.md`](docs/mhbench-plus-generation-contract.md).
+See
+[`docs/llm-harbor-case-refinement.md`](docs/llm-harbor-case-refinement.md)
+for the boundary and expected response contract. No LLM provider is required
+at build, runtime, or scoring time.
+
 ## Tips
 
 - Ensure your SSH key referenced in `openstack_config.ssh_key_path` exists and
   is registered in OpenStack.
 - Snapshots are automatically managed during `compile`; use `setup` to restore
   from existing snapshots without rebuilding everything.
-

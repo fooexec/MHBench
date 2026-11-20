@@ -1,0 +1,13 @@
+FROM php:8.2-apache@sha256:1bc4115a5528326425f1f59846fc7879d7d3843da9905b42931755ac4d4b29bc
+
+RUN docker-php-ext-install mysqli pdo_mysql \
+    && printf 'ServerName port-app-fixed\n' > /etc/apache2/conf-available/servername.conf \
+    && a2enconf servername
+
+COPY build/port-app/app/ /var/www/html/
+COPY research/fixed-controls/app/request_table.php /var/www/html/request_table.php
+COPY research/fixed-controls/app/shipstatus_cntry.php /var/www/html/shipstatus_cntry.php
+COPY research/fixed-controls/app/shipstatus.php /var/www/html/shipstatus.php
+RUN chown -R www-data:www-data /var/www/html
+
+EXPOSE 80

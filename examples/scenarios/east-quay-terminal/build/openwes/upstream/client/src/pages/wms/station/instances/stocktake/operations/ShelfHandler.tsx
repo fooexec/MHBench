@@ -1,0 +1,83 @@
+import type {WorkStationView} from "@/pages/wms/station/event-loop/types"
+import type {ReplenishProps} from "@/pages/wms/station/instances/receive/types"
+import type {OperationProps} from "@/pages/wms/station/instances/types"
+import MaterialRack from "@/pages/wms/station/widgets/common/Shelf"
+import React from "react"
+import {Typography} from "antd"
+
+const {Title} = Typography
+
+export interface ContainerHandlerConfirmProps {
+    operationType: string
+    operationId: string
+    operationConfirmInfo: OperationConfirmInfo
+}
+
+interface OperationConfirmInfo {
+    subContainerCode?: string
+    containerCode?: string
+}
+
+export interface RobotHandlerProps {
+    robotArea: any
+    operationType: string
+}
+
+/**
+ * @Description: 对event中的数据进行filter处理
+ * @param data
+ */
+export const valueFilter = (
+    data: WorkStationView<ReplenishProps> | undefined
+):
+    | OperationProps<RobotHandlerProps, ContainerHandlerConfirmProps>["value"]
+    | Record<string, any> => {
+    if (!data) return {}
+    return {
+        robotArea: data.workLocationArea,
+        operationType: data.workStationMode
+    }
+}
+
+const RobotHandler = (
+    props: OperationProps<RobotHandlerProps, ContainerHandlerConfirmProps>
+) => {
+    const {value} = props
+
+    const {robotArea} = value || {}
+    const arrivedContainer =
+        robotArea?.workLocationViews?.[0].workLocationSlots?.[0]
+            ?.arrivedContainer
+
+    return (
+        <div className="h-full w-full">
+            <Title level={3} className="pb-6">
+                Container
+            </Title>
+            <div
+                style={{
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    // justifyContent: "center",
+                    width: "100%"
+                }}
+            >
+                <div
+                    style={{
+                        height: "70%",
+                        width: "70%"
+                    }}
+                >
+                    <MaterialRack
+                        arrivedContainer={arrivedContainer}
+                        showSlotCode={true}
+                    />
+                </div>
+            </div>
+        </div>
+    )
+}
+
+export default RobotHandler

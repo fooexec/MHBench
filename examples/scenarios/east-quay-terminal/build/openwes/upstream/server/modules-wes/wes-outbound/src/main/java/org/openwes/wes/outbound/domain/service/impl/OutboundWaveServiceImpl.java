@@ -1,0 +1,120 @@
+package org.openwes.wes.outbound.domain.service.impl;
+
+import com.google.common.collect.Lists;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.openwes.plugin.extension.IPlugin;
+import org.openwes.plugin.extension.business.wes.outbound.action.IOutboundWaveSplitAction;
+import org.openwes.plugin.extension.business.wes.outbound.action.IOutboundWaveWaveAction;
+import org.openwes.plugin.sdk.utils.PluginSdkUtils;
+import org.openwes.wes.api.outbound.dto.OutboundPlanOrderDTO;
+import org.openwes.wes.api.outbound.dto.PickingOrderDTO;
+import org.openwes.wes.outbound.domain.entity.*;
+import org.openwes.wes.outbound.domain.repository.OutboundPlanOrderRepository;
+import org.openwes.wes.outbound.domain.repository.OutboundPreAllocatedRecordRepository;
+import org.openwes.wes.outbound.domain.service.OutboundWaveService;
+import org.openwes.wes.outbound.domain.transfer.OutboundPlanOrderTransfer;
+import org.openwes.wes.outbound.domain.transfer.OutboundWaveTransfer;
+import org.openwes.wes.outbound.domain.transfer.PickingOrderTransfer;
+import org.springframework.stereotype.Service;
+
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class OutboundWaveServiceImpl implements OutboundWaveService {
+
+    private final PluginSdkUtils pluginUtils;
+    private final OutboundPlanOrderRepository outboundPlanOrderRepository;
+    private final OutboundWaveTransfer outboundWaveTransfer;
+    private final PickingOrderTransfer pickingOrderTransfer;
+    private final OutboundPlanOrderTransfer outboundPlanOrderTransfer;
+    private final OutboundPreAllocatedRecordRepository outboundPreAllocatedRecordRepository;
+
+    @Override
+    public Collection<List<OutboundPlanOrder>> wavePickings(List<OutboundPlanOrder> outboundPlanOrders) {
+
+        List<IOutboundWaveWaveAction> outboundWaveActions = pluginUtils.getExtractObject(IOutboundWaveWaveAction.class);
+        IOutboundWaveWaveAction waveAction = outboundWaveActions.stream()
+                .max(Comparator.comparingInt(IPlugin::priority)).orElse(null);
+        if (waveAction != null) {
+            try {
+                List<List<OutboundPlanOrderDTO>> waves = waveAction.wave(outboundPlanOrderTransfer.toDTOs(outboundPlanOrders));
+                if (waves != null) {
+                    return waves.stream().map(outboundPlanOrderTransfer::toDOs).toList();
+                }
+                log.warn("outbound wave plugin returned null, falling back to built-in grouping");
+            } catch (Exception e) {
+                log.error("outbound wave plugin failed, falling back to built-in grouping", e);
+            }
+        }
+
+        // 外部波次号为空的订单单组独成为一个波次
+        List<List<OutboundPlanOrder>> emptyWaveNoOrders = outboundPlanOrders.stream()
+                .filter(order -> StringUtils.isEmpty(order.getCustomerWaveNo()))
+                .map(List::of).toList();
+
+        // 有波次号的订单按照波次号组波
+        Map<String, List<OutboundPlanOrder>> outboundWaveMap = outboundPlanOrders.stream()
+                .filter(order -> StringUtils.isNotEmpty(order.getCustomerWaveNo()))
+                .collect(Collectors.groupingBy(OutboundPlanOrder::getCustomerWaveNo));
+
+        return CollectionUtils.union(emptyWaveNoOrders, outboundWaveMap.values());
+    }
+
+    @Override
+    public List<PickingOrder> spiltWave(OutboundWave outboundWave) {
+
+        List<IOutboundWaveSplitAction> outboundWaveSplitActions = pluginUtils.getExtractObject(IOutboundWaveSplitAction.class);
+        IOutboundWaveSplitAction splitAction = outboundWaveSplitActions.stream()
+                .max(Comparator.comparingInt(IPlugin::priority)).orElse(null);
+        if (splitAction != null) {
+            try {
+                List<OutboundPlanOrder> outboundPlanOrders = outboundPlanOrderRepository.findAllByIds(outboundWave.getOutboundPlanOrderIds());
+                List<PickingOrderDTO> pickingOrderDTOS = splitAction.split(outboundWaveTransfer.toDTO(outboundWave, outboundPlanOrders));
+                if (pickingOrderDTOS != null) {
+                    return pickingOrderTransfer.toDOs(pickingOrderDTOS);
+                }
+                log.warn("outbound wave split plugin returned null, falling back to built-in split");
+            } catch (Exception e) {
+                log.error("outbound wave split plugin failed, falling back to built-in split", e);
+            }
+        }
+
+        Map<Long, List<OutboundPreAllocatedRecord>> warehouseAreaRecordMap = outboundPreAllocatedRecordRepository
+                .findByOutboundPlanOrderIds(outboundWave.getOutboundPlanOrderIds())
+                .stream().collect(Collectors.groupingBy(OutboundPreAllocatedRecord::getWarehouseAreaId));
+
+        List<PickingOrder> pickingOrders = Lists.newArrayList();
+        warehouseAreaRecordMap.forEach((key, value) -> {
+
+            List<PickingOrderDetail> pickingOrderDetails = value.stream()
+                    .map(preAllocatedRecord -> {
+                                PickingOrderDetail pickingOrderDetail = new PickingOrderDetail()
+                                        .setSkuId(preAllocatedRecord.getSkuId())
+                                        .setOwnerCode(preAllocatedRecord.getOwnerCode())
+                                        .setOutboundOrderPlanId(preAllocatedRecord.getOutboundPlanOrderId())
+                                        .setBatchAttributes(preAllocatedRecord.getBatchAttributes())
+                                        .setQtyRequired(preAllocatedRecord.getQtyPreAllocated())
+                                        .setSkuBatchStockId(preAllocatedRecord.getSkuBatchStockId())
+                                        .setOutboundOrderPlanDetailId(preAllocatedRecord.getOutboundPlanOrderDetailId())
+                                        .setRetargetingWarehouseAreaIds(preAllocatedRecord.getWarehouseAreaIds());
+                                pickingOrderDetail.setModified(true);
+                                return pickingOrderDetail;
+                            }
+                    ).toList();
+
+            PickingOrder pickingOrder = PickingOrder.create(outboundWave.getPriority(), outboundWave.isShortOutbound(),
+                    outboundWave.getWarehouseCode(), key, outboundWave.getWaveNo(), pickingOrderDetails, true);
+            pickingOrders.add(pickingOrder);
+        });
+        return pickingOrders;
+    }
+}

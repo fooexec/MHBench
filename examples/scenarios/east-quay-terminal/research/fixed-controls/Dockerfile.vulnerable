@@ -1,0 +1,14 @@
+FROM php:8.2-apache@sha256:1bc4115a5528326425f1f59846fc7879d7d3843da9905b42931755ac4d4b29bc
+
+RUN docker-php-ext-install mysqli pdo_mysql \
+    && printf 'ServerName port-app-vulnerable\n' > /etc/apache2/conf-available/servername.conf \
+    && a2enconf servername
+
+COPY build/port-app/app/ /var/www/html/
+COPY weakness-overlays/port-request-manifest/request_table.php /var/www/html/request_table.php
+COPY weakness-overlays/port-status-sqli/shipstatus_cntry.php /var/www/html/shipstatus_cntry.php
+COPY weakness-overlays/port-clearance-status-bypass/shipstatus.php /var/www/html/shipstatus.php
+COPY weakness-overlays/port-clearance-status-bypass/adminHome.php /var/www/html/adminHome.php
+RUN chown -R www-data:www-data /var/www/html
+
+EXPOSE 80

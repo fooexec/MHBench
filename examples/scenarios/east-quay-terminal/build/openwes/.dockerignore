@@ -1,0 +1,6 @@
+upstream/server/.gradle
+upstream/server/**/build
+upstream/client/node_modules
+upstream/client/dist
+upstream/client/.superpowers
+**/*.log

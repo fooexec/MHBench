@@ -1,0 +1,122 @@
+package org.openwes.wes.ems.proxy.application;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.dubbo.config.annotation.DubboService;
+import org.openwes.api.platform.api.constants.CallbackApiTypeEnum;
+import org.openwes.wes.api.ems.proxy.IContainerTaskApi;
+import org.openwes.wes.api.ems.proxy.constants.ContainerTaskTypeEnum;
+import org.openwes.wes.api.ems.proxy.dto.ContainerTaskDTO;
+import org.openwes.wes.api.ems.proxy.dto.CreateContainerTaskDTO;
+import org.openwes.wes.api.ems.proxy.dto.UpdateContainerTaskDTO;
+import org.openwes.wes.common.facade.CallbackApiFacade;
+import org.openwes.wes.ems.proxy.domain.entity.ContainerTask;
+import org.openwes.wes.ems.proxy.domain.repository.ContainerTaskRepository;
+import org.openwes.wes.ems.proxy.domain.service.ContainerTaskService;
+import org.openwes.wes.ems.proxy.domain.transfer.ContainerTaskTransfer;
+import org.springframework.context.annotation.Primary;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Primary
+@Service
+@DubboService
+@RequiredArgsConstructor
+@Validated
+public class ContainerTaskApiImpl implements IContainerTaskApi {
+
+    private final ContainerTaskService containerTaskService;
+    private final ContainerTaskRepository containerTaskRepository;
+    private final CallbackApiFacade callbackApiFacade;
+    private final ContainerTaskTransfer containerTaskTransfer;
+
+    @Override
+    public List<ContainerTaskDTO> createContainerTasks(List<CreateContainerTaskDTO> createContainerTasks) {
+
+        List<ContainerTask> containerTasks = containerTaskService.groupContainerTasks(createContainerTasks);
+        List<ContainerTask> flatContainerTasks = containerTaskService.flatContainerTasks(containerTasks);
+
+        containerTaskRepository.saveAll(flatContainerTasks);
+
+        ContainerTaskTypeEnum containerTaskType = createContainerTasks.iterator().next().getContainerTaskType();
+
+        callbackApiFacade.callback(CallbackApiTypeEnum.CONTAINER_TASK_CREATE, containerTasks, containerTaskType);
+
+        return containerTaskTransfer.toDTOs(flatContainerTasks);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateContainerTaskStatus(List<UpdateContainerTaskDTO> updateContainerTasks) {
+        List<ContainerTask> containerTasks = containerTaskRepository.findAllByTaskCodes(
+                updateContainerTasks.stream().map(UpdateContainerTaskDTO::getTaskCode).toList());
+
+        Map<String, UpdateContainerTaskDTO> taskCodeMap = updateContainerTasks.stream()
+                .collect(Collectors.toMap(UpdateContainerTaskDTO::getTaskCode, v -> v));
+
+        containerTasks.forEach(containerTask -> {
+            UpdateContainerTaskDTO updateContainerTaskDTO = taskCodeMap.get(containerTask.getTaskCode());
+            if (updateContainerTaskDTO == null) {
+                log.error("task code: {} is not exist.", containerTask.getTaskCode());
+                return;
+            }
+
+            containerTask.updateTaskStatus(updateContainerTaskDTO.getTaskStatus(), updateContainerTaskDTO.getLocationCode());
+        });
+
+        containerTaskRepository.saveAll(containerTasks);
+
+        containerTaskService.doAfterFinishContainerTasks(containerTasks);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void cancel(Collection<String> taskCodes) {
+        List<ContainerTask> containerTasks = containerTaskRepository.findAllByTaskCodes(taskCodes);
+        cancelContainerTasks(containerTasks);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void cancel(List<Long> customerTaskIds) {
+        List<ContainerTask> containerTasks = containerTaskRepository.findAllByCustomerTaskIds(customerTaskIds);
+        cancelContainerTasks(containerTasks);
+    }
+
+    @Override
+    public void improvePriority(List<Long> customerTaskIds, Integer priority) {
+        List<ContainerTask> containerTasks = containerTaskRepository.findAllByCustomerTaskIds(customerTaskIds);
+        containerTasks.forEach(v -> v.improvePriority(priority));
+        containerTaskRepository.saveAll(containerTasks);
+
+        callbackApiFacade.callback(CallbackApiTypeEnum.CONTAINER_TASK_IMPROVE_PRIORITY, containerTasks, containerTasks.iterator().next().getContainerTaskType());
+    }
+
+    private void cancelContainerTasks(List<ContainerTask> containerTasks) {
+        if (containerTasks.isEmpty()) {
+            return;
+        }
+
+        List<ContainerTask> canceledContainerTasks = containerTasks.stream().filter(ContainerTask::cancel).toList();
+
+        if (CollectionUtils.isEmpty(canceledContainerTasks)) {
+            return;
+        }
+
+        containerTaskRepository.saveAll(canceledContainerTasks);
+
+        ContainerTask containerTask = canceledContainerTasks.iterator().next();
+
+        callbackApiFacade.callback(CallbackApiTypeEnum.CONTAINER_TASK_CANCEL, canceledContainerTasks, containerTask.getContainerTaskType());
+
+    }
+
+}

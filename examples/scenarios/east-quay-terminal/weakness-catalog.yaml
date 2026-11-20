@@ -1,0 +1,32 @@
+schema_version: '1.0'
+weaknesses:
+- catalog_ref: weakness://east-quay/port-request-manifest
+  candidate_ids: [port-request-table-unauthenticated-disclosure]
+  service_catalog_ref: service://east-quay/port-app/php82
+  deployment: file_overlay
+  file_overlays:
+  - source: weakness-overlays/port-request-manifest/request_table.php
+    target: /var/www/html/request_table.php
+- catalog_ref: weakness://east-quay/port-status-sqli
+  candidate_ids: [port-ship-status-union-sqli]
+  service_catalog_ref: service://east-quay/port-app/php82
+  deployment: file_overlay
+  file_overlays:
+  - source: weakness-overlays/port-status-sqli/shipstatus_cntry.php
+    target: /var/www/html/shipstatus_cntry.php
+- catalog_ref: weakness://east-quay/operations-password-reuse
+  candidate_ids: [port-operations-carrier-password-reuse]
+  service_catalog_ref: service://east-quay/port-db/mariadb1011
+  deployment: file_overlay
+  file_overlays:
+  - source: weakness-overlays/port-operations-password-reuse/seed.sh
+    target: /docker-entrypoint-initdb.d/01-east-quay.sh
+- catalog_ref: weakness://east-quay/port-clearance-status-bypass
+  candidate_ids: [port-operations-direct-status-clearance-bypass]
+  service_catalog_ref: service://east-quay/port-app/php82
+  deployment: file_overlay
+  file_overlays:
+  - source: weakness-overlays/port-clearance-status-bypass/shipstatus.php
+    target: /var/www/html/shipstatus.php
+  - source: weakness-overlays/port-clearance-status-bypass/adminHome.php
+    target: /var/www/html/adminHome.php

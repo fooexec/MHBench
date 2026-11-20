@@ -1,0 +1,56 @@
+.fixButton {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1000;
+    transition: transform 0.2s ease;
+
+    &:hover {
+        transform: scale(1.08);
+    }
+}
+
+/* Tooltip */
+.fixButton .tooltip {
+    visibility: hidden;
+    width: 120px;
+    background-color: #1e293b;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -60px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.fixButton .tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #1e293b transparent transparent transparent;
+}
+
+.fixButton:hover .tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
+.fixButton :global(.ant-btn) {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+}

@@ -1,0 +1,92 @@
+/**
+ * @Description: 用于包装组件，注入组件需要的通用方法，并对event中的数据进行filter处理
+ */
+import classNames from "classnames/bind"
+import { debounce } from "lodash"
+import type { FunctionComponent, ReactNode } from "react"
+import React, { useEffect, useRef, useMemo, useCallback } from "react"
+import { observer } from "mobx-react-lite"
+
+import { DEBOUNCE_TIME } from "@/pages/wms/station/constants/constant"
+import { useWorkStation } from "@/pages/wms/station/state"
+import { WorkStationView } from "@/pages/wms/station/event-loop/types"
+import type { OperationProps } from "@/pages/wms/station/instances/types"
+
+import styles from "./layout/styles.module.scss"
+
+const cx = classNames.bind(styles)
+
+/**
+ * 组件包装器
+ * @param props
+ */
+function Wrapper(props: {
+    type: string
+    Component: FunctionComponent<OperationProps<any, any>>
+    valueFilter?: (data: WorkStationView<any> | undefined) => any
+    changeAreaHandler?: () => Promise<void>
+    withWrapper?: boolean
+    style?: React.CSSProperties
+    isActive?: boolean
+}) {
+    const {
+        type,
+        Component,
+        valueFilter,
+        changeAreaHandler,
+        withWrapper = true,
+        style,
+        isActive: propIsActive
+    } = props
+
+    const ref = useRef<ReactNode>(null)
+
+    const { store } = useWorkStation()
+    const { workStationEvent } = store
+
+    const filteredValue = useMemo(() => {
+        return valueFilter ? valueFilter(workStationEvent) : workStationEvent
+    }, [workStationEvent, valueFilter])
+
+    const chooseArea = workStationEvent?.chooseArea
+
+    const isActive =
+        propIsActive !== undefined
+            ? propIsActive
+            : chooseArea === type
+    const evenChangeHandler = useCallback(
+        debounce(
+            async () => {
+                if (chooseArea === type) return
+                changeAreaHandler && (await changeAreaHandler())
+            },
+            DEBOUNCE_TIME,
+            { leading: true }
+        ),
+        [type, changeAreaHandler, chooseArea]
+    )
+
+    // 注册组件实例
+    useEffect(() => {
+        store.setOperationMap(type, ref.current)
+    }, [type, store])
+
+    const wrapperClassName = cx({
+        "operation-area": withWrapper,
+        highlight: isActive
+    })
+
+    return withWrapper ? (
+        <div
+            className={wrapperClassName}
+            onClick={evenChangeHandler}
+            style={{ ...style, backgroundColor: "#fff" }}
+        >
+            <Component refs={ref} value={filteredValue} isActive={isActive} />
+        </div>
+    ) : (
+        <Component refs={ref} value={filteredValue} isActive={isActive} />
+    )
+}
+
+export default observer(Wrapper)

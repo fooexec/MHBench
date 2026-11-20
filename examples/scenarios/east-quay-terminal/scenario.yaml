@@ -1,0 +1,145 @@
+schema_version: '1.1'
+id: east-quay-terminal
+title: East Quay Regional Cargo Operations
+summary: >-
+  East Quay processes carrier requests and vessel calls through a port operations
+  application. Warehouse Operations stages outbound orders in the warehouse
+  execution system, while Terminal Operations reviews clearance and dispatch
+  decisions before approved moves enter the segmented yard-control path.
+departments:
+- id: carrier-services
+  name: Carrier Services
+  purpose: Receive vessel, cargo, and container requests from shipping customers.
+- id: terminal-operations
+  name: Terminal Operations
+  purpose: Review requests, clearance records, vessel assignments, and yard moves.
+- id: warehouse-operations
+  name: Warehouse Operations
+  purpose: Stage outbound cargo, maintain warehouse inventory, and record picking readiness.
+- id: terminal-integration
+  name: Terminal Integration
+  purpose: Translate approved port work into equipment-facing dispatch messages.
+- id: automation-engineering
+  name: Automation and Equipment Engineering
+  purpose: Maintain the yard controller and its bounded operating rules.
+- id: ot-network-operations
+  name: OT Network Operations
+  purpose: Operate the isolated message path between dispatch and yard control.
+actors:
+- id: freight-agent
+  name: Freight Agent
+  department_id: carrier-services
+  description: External carrier user who can create requests and view its own shipment records.
+- id: cargo-clerk
+  name: Cargo Clerk
+  department_id: terminal-operations
+  description: Reviews submitted requests and supporting cargo records.
+- id: warehouse-coordinator
+  name: Warehouse Coordinator
+  department_id: warehouse-operations
+  description: Creates outbound plan orders and records pick readiness for terminal shipments.
+- id: operations-supervisor
+  name: Port Operations Supervisor
+  department_id: terminal-operations
+  description: Records clearance decisions and authorizes dispatch work.
+- id: integration-engineer
+  name: Terminal Integration Engineer
+  department_id: terminal-integration
+  description: Maintains the port-to-yard dispatch bridge.
+- id: controls-engineer
+  name: Controls Engineer
+  department_id: automation-engineering
+  description: Maintains equipment command handling and safe operating limits.
+systems:
+- id: port-operations
+  name: Port Operations and Shipment Records
+  purpose: Maintain carrier requests, ship calls, container references, and clearance decisions.
+  department_ids: [carrier-services, terminal-operations]
+- id: yard-dispatch
+  name: Yard Dispatch Integration
+  purpose: Convert approved shipment moves into equipment-facing work orders.
+  department_ids: [terminal-integration, terminal-operations]
+- id: warehouse-execution
+  name: Warehouse Execution
+  purpose: Manage outbound plan orders, stock allocation, picking tasks, and warehouse stations.
+  department_ids: [warehouse-operations, terminal-operations]
+- id: yard-message-network
+  name: Yard Message Network
+  purpose: Carry work orders and completion messages between dispatch and control.
+  department_ids: [ot-network-operations, terminal-integration]
+- id: yard-control
+  name: Yard Control Process
+  purpose: Apply permitted work orders to vessel and equipment state.
+  department_ids: [automation-engineering]
+workflows:
+- id: carrier-request-review
+  name: Carrier request and operations review
+  purpose: Record a carrier request, review its vessel and cargo details, and record clearance status.
+  actor_ids: [freight-agent, cargo-clerk, operations-supervisor]
+  system_ids: [port-operations]
+  system_interactions: []
+  records: [carrier-request, vessel-call, container-reference, clearance-decision]
+  outcome: The request and clearance decision are available to terminal operations.
+- id: approved-move-to-yard
+  name: Dispatch an approved shipment move
+  purpose: Reconcile the cleared port request and its warehouse outbound plan before dispatching a yard action.
+  actor_ids: [operations-supervisor, warehouse-coordinator, integration-engineer, controls-engineer]
+  system_ids: [port-operations, warehouse-execution, yard-dispatch, yard-message-network, yard-control]
+  system_interactions:
+  - id: port-to-yard-dispatch
+    from_system_id: port-operations
+    to_system_id: yard-dispatch
+    kind: service_integration
+    records: [approved-yard-move]
+  - id: yard-dispatch-to-message-network
+    from_system_id: yard-dispatch
+    to_system_id: yard-message-network
+    kind: service_integration
+    records: [yard-command]
+  - id: message-network-to-yard-control
+    from_system_id: yard-message-network
+    to_system_id: yard-control
+    kind: service_integration
+    records: [yard-command]
+  - id: yard-control-to-message-network
+    from_system_id: yard-control
+    to_system_id: yard-message-network
+    kind: service_integration
+    records: [equipment-completion]
+  - id: yard-dispatch-to-port-records
+    from_system_id: yard-dispatch
+    to_system_id: port-operations
+    kind: service_integration
+    records: [clearance-decision, dispatch-audit]
+  - id: yard-control-to-port-records
+    from_system_id: yard-control
+    to_system_id: port-operations
+    kind: service_integration
+    records: [equipment-completion]
+  - id: port-to-warehouse-reference
+    from_system_id: port-operations
+    to_system_id: warehouse-execution
+    kind: human_handoff
+    records: [carrier-shipment-reference]
+  records:
+  - approved-yard-move
+  - warehouse-outbound-plan
+  - carrier-shipment-reference
+  - clearance-decision
+  - dispatch-audit
+  - yard-command
+  - equipment-completion
+  outcome: Terminal staff reconcile the same shipment reference across the port request and warehouse plan before the dispatch bridge submits the yard work order.
+- id: warehouse-outbound-staging
+  name: Stage an approved shipment for outbound handling
+  purpose: Use the carrier shipment reference to create a warehouse outbound plan and record pick readiness.
+  actor_ids: [operations-supervisor, warehouse-coordinator]
+  system_ids: [port-operations, warehouse-execution]
+  system_interactions:
+  - id: port-to-warehouse-staging-reference
+    from_system_id: port-operations
+    to_system_id: warehouse-execution
+    kind: human_handoff
+    records: [carrier-shipment-reference]
+  records: [carrier-shipment-reference, outbound-plan-order, pick-readiness]
+  outcome: Warehouse Operations records a pick-ready outbound plan associated with the shipment reference used by Terminal Operations.
